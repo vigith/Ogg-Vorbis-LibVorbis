@@ -1,0 +1,2 @@
+OggVorbis_File *	T_PTR
+vorbis_info *  		T_PTR

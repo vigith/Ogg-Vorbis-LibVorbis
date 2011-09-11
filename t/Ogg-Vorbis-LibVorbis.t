@@ -1,11 +1,7 @@
 # Before `make install' is performed this script should be runnable with
 # `make test'. After `make install' it should work as `perl Ogg-Vorbis-LibVorbis.t'
 
-#########################
-
-# change 'tests => 2' to 'tests => last_test_to_print';
-
-use Test::More tests => 2;
+use Test::More tests => 11;
 BEGIN { use_ok('Ogg::Vorbis::LibVorbis') };
 
 
@@ -29,8 +25,42 @@ foreach my $constname (qw(
 }
 
 ok( $fail == 0 , 'Constants' );
-#########################
 
-# Insert your test code below, the Test::More module is use()ed here so read
-# its man page ( perldoc Test::More ) for help writing this test script.
+## END GENERATED ##
 
+# Create Data Structures
+my $vf = Ogg::Vorbis::LibVorbis::make_oggvorbis_file(); # OggVorbis_File
+ok($vf, "OggVorbis_File");
+
+my $vi = Ogg::Vorbis::LibVorbis::make_vorbis_info(); # vorbis_info
+ok($vi, "vorbis_info");
+
+# Open Vorbis File
+my $filename = "t/test.ogg";
+open IN, $filename or die "can't open [$filename] : $!";
+my $status = Ogg::Vorbis::LibVorbis::ov_open(*IN,  $vf, 0, 0);
+ok($status == 0, "ov_open");
+
+# ov_seekable
+$status = Ogg::Vorbis::LibVorbis::ov_seekable($vf);
+ok($status != 0, "ov_seekable");
+
+# ov_time_total
+$status = Ogg::Vorbis::LibVorbis::ov_time_total($vf, -1);
+ok($status > 0, "ov_time_total");
+
+# ov_time_seek
+$status = Ogg::Vorbis::LibVorbis::ov_time_seek($vf, 1);
+ok($status == 0, "ov_time_seek");
+
+# ov_streams
+$status = Ogg::Vorbis::LibVorbis::ov_streams($vf);
+ok($status, "ov_streams");
+
+# ov_info
+$vi = Ogg::Vorbis::LibVorbis::ov_info($vf, 1); # 1 'coz we know our test .vob file has only 1 bitstream
+ok($$vi, "ov_info");
+
+# ov_clear
+$status = Ogg::Vorbis::LibVorbis::ov_clear($vf);
+ok($status == 0, "ov_clear");
