@@ -1,0 +1,10 @@
+Changes
+LibVorbis.xs
+Makefile.PL
+MANIFEST
+ppport.h
+README
+t/Ogg-Vorbis-LibVorbis.t
+fallback/const-c.inc
+fallback/const-xs.inc
+lib/Ogg/Vorbis/LibVorbis.pm
