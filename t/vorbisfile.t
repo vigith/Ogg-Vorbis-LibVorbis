@@ -1,7 +1,4 @@
-# Before `make install' is performed this script should be runnable with
-# `make test'. After `make install' it should work as `perl Ogg-Vorbis-LibVorbis.t'
-
-use Test::More tests => 11;
+use Test::More tests => 22;
 BEGIN { use_ok('Ogg::Vorbis::LibVorbis') };
 
 
@@ -36,6 +33,7 @@ my $vi = Ogg::Vorbis::LibVorbis::make_vorbis_info(); # vorbis_info
 ok($vi, "vorbis_info");
 
 # Open Vorbis File
+#my $filename = "t/I-15bis.ogg"; #"t/test.ogg";
 my $filename = "t/test.ogg";
 open IN, $filename or die "can't open [$filename] : $!";
 my $status = Ogg::Vorbis::LibVorbis::ov_open(*IN,  $vf, 0, 0);
@@ -58,8 +56,51 @@ $status = Ogg::Vorbis::LibVorbis::ov_streams($vf);
 ok($status, "ov_streams");
 
 # ov_info
-$vi = Ogg::Vorbis::LibVorbis::ov_info($vf, 1); # 1 'coz we know our test .vob file has only 1 bitstream
-ok($$vi, "ov_info");
+$vi = Ogg::Vorbis::LibVorbis::ov_info($vf, 0); # 0 'coz we know our test .vob file has only 1 bitstream
+ok($vi, "ov_info");
+
+# ov_comment
+my $vc = Ogg::Vorbis::LibVorbis::ov_comment($vf, 0);
+ok($vc, "ov_comment");
+
+# ov_bitrate
+$status = Ogg::Vorbis::LibVorbis::ov_bitrate($vf, -1);
+ok($status, "ov_bitrate");
+
+# ov_bitrate_instant
+$status = Ogg::Vorbis::LibVorbis::ov_bitrate_instant($vf);
+ok($status, "ov_bitrate_instant");
+
+# ov_serialnumber
+$status = Ogg::Vorbis::LibVorbis::ov_serialnumber($vf, -1);
+ok($status, "ov_serialnumber");
+
+# ov_raw_total
+$status = Ogg::Vorbis::LibVorbis::ov_raw_total($vf, -1);
+ok($status, "ov_raw_total");
+
+# ov_pcm_total
+$status = Ogg::Vorbis::LibVorbis::ov_pcm_total($vf, -1);
+ok($status, "ov_pcm_total");
+
+# ov_raw_tell
+$status = Ogg::Vorbis::LibVorbis::ov_raw_tell($vf);
+ok($status, "ov_pcm_tell");
+
+# ov_pcm_tell
+$status = Ogg::Vorbis::LibVorbis::ov_pcm_tell($vf);
+ok($status, "ov_raw_tell");
+
+# ov_time_tell
+$status = Ogg::Vorbis::LibVorbis::ov_time_tell($vf);
+ok($status, "ov_time_tell");
+
+$status = Ogg::Vorbis::LibVorbis::get_vorbis_comment($vc);
+ok(ref $status eq 'HASH', "get_vorbis_comment");
+
+# get_vorbis_info
+$status = Ogg::Vorbis::LibVorbis::get_vorbis_info($vi);
+ok ($status->{channels} >= 1, "get_vorbis_info");
 
 # ov_clear
 $status = Ogg::Vorbis::LibVorbis::ov_clear($vf);
