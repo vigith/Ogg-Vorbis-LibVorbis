@@ -1,4 +1,4 @@
-use Test::More tests => 22;
+use Test::More tests => 31;
 BEGIN { use_ok('Ogg::Vorbis::LibVorbis') };
 
 
@@ -101,6 +101,42 @@ ok(ref $status eq 'HASH', "get_vorbis_comment");
 # get_vorbis_info
 $status = Ogg::Vorbis::LibVorbis::get_vorbis_info($vi);
 ok ($status->{channels} >= 1, "get_vorbis_info");
+
+# ov_raw_seek
+$status = Ogg::Vorbis::LibVorbis::ov_raw_seek($vf, 10);
+ok($status == 0, "ov_raw_seek");
+
+# ov_pcm_seek
+$status = Ogg::Vorbis::LibVorbis::ov_pcm_seek($vf, 10);
+ok($status == 0, "ov_pcm_seek");
+
+# ov_pcm_seek_page
+$status = Ogg::Vorbis::LibVorbis::ov_pcm_seek_page($vf, 10);
+ok($status == 0, "ov_pcm_seek_page");
+
+# ov_time_seek_page
+$status = Ogg::Vorbis::LibVorbis::ov_time_seek_page($vf, 0); # our audio test file is hardly 1 sec :-)
+ok($status == 0, "ov_time_seek_page");
+
+# ov_raw_seek_lap
+$status = Ogg::Vorbis::LibVorbis::ov_raw_seek_lap($vf, 10); 
+ok($status == 0, "ov_raw_seek_lap");
+
+# ov_pcm_seek_lap
+$status = Ogg::Vorbis::LibVorbis::ov_pcm_seek_lap($vf, 10); 
+ok($status == 0, "ov_pcm_seek_lap");
+
+# ov_time_seek_lap
+$status = Ogg::Vorbis::LibVorbis::ov_time_seek_lap($vf, 0); # our audio test file is hardly 1 sec :-)
+ok($status == 0, "ov_time_seek_lap");
+
+# ov_pcm_seek_page_lap
+$status = Ogg::Vorbis::LibVorbis::ov_pcm_seek_page_lap($vf, 0); # our audio test file is hardly 1 sec :-)
+ok($status == 0, "ov_pcm_seek_page_lap");
+
+# ov_time_seek_page_lap
+$status = Ogg::Vorbis::LibVorbis::ov_time_seek_page_lap($vf, 0); # our audio test file is hardly 1 sec :-)
+ok($status == 0, "ov_time_seek_page_lap");
 
 # ov_clear
 $status = Ogg::Vorbis::LibVorbis::ov_clear($vf);

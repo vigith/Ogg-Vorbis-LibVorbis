@@ -199,7 +199,7 @@ L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_time_seek.html>
 
 -Input:
   OggVorbis_File,
-  double, (location to seek in seconds)
+  double (location to seek in seconds)
 
 -Output:
   0 for success
@@ -221,6 +221,290 @@ LibVorbis_ov_time_seek(vf, s)
     RETVAL = ov_time_seek(vf, s);
   OUTPUT:
     RETVAL  
+
+
+=head2 ov_raw_seek
+
+For seekable streams, this seeks to the given offset in compressed raw bytes.
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_raw_seek.html>
+
+-Input:
+  OggVorbis_File,
+  long (location to seek in compressed raw bytes)
+
+-Output:
+  0 for success
+  nonzero indicates failure, described by several error codes:
+
+    OV_ENOSEEK - Bitstream is not seekable.
+    OV_EINVAL - Invalid argument value; possibly called with an OggVorbis_File structure that isn't open.
+    OV_EREAD - A read from media returned an error.
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+    OV_EBADLINK - Invalid stream section supplied to libvorbisfile, or the requested link is corrupt.
+
+=cut
+
+int
+LibVorbis_ov_raw_seek(vf, s)
+    OggVorbis_File *	   vf
+    long	   	   s
+  CODE:
+    RETVAL = ov_raw_seek(vf, s);
+  OUTPUT:
+    RETVAL
+
+
+=head2 ov_pcm_seek
+
+Seeks to the offset specified (in pcm samples) within the physical bitstream.
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_pcm_seek.html>
+
+-Input:
+  OggVorbis_File,
+  ogg_int64_t, (location to seek in pcm samples)
+
+-Output:
+  0 for success
+  nonzero indicates failure, described by several error codes:
+
+    OV_ENOSEEK - Bitstream is not seekable.
+    OV_EINVAL - Invalid argument value; possibly called with an OggVorbis_File structure that isn't open.
+    OV_EREAD - A read from media returned an error.
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+    OV_EBADLINK - Invalid stream section supplied to libvorbisfile, or the requested link is corrupt.
+
+=cut
+
+int
+LibVorbis_ov_pcm_seek(vf, s)
+    OggVorbis_File *	   vf
+    ogg_int64_t	   	   s
+  CODE:
+    RETVAL = ov_pcm_seek(vf, s);
+  OUTPUT:
+    RETVAL
+
+
+=head2 ov_pcm_seek_page
+
+Seeks to the closest page preceding the specified location (in pcm samples).
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_pcm_seek_page.html>
+
+-Input:
+  OggVorbis_File,
+  ogg_int64_t (position in pcm samples to seek to in the bitstream)
+
+-Output:
+  0 for success
+  nonzero indicates failure, described by several error codes:
+
+    OV_ENOSEEK - Bitstream is not seekable.
+    OV_EINVAL - Invalid argument value; possibly called with an OggVorbis_File structure that isn't open.
+    OV_EREAD - A read from media returned an error.
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+    OV_EBADLINK - Invalid stream section supplied to libvorbisfile, or the requested link is corrupt.
+
+=cut
+
+int
+LibVorbis_ov_pcm_seek_page(vf, pos)
+    OggVorbis_File *	   vf
+    ogg_int64_t	   	   pos
+  CODE:
+    RETVAL = ov_pcm_seek_page(vf, pos);
+  OUTPUT:
+    RETVAL
+
+
+=head2 ov_time_seek_page
+
+For seekable streams, this seeks to closest full page preceding the given time.
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_time_seek_page.html>
+
+-Input:
+  OggVorbis_File,
+  double (Location to seek to within the file, specified in seconds)
+
+-Output:
+  0 for success
+  nonzero indicates failure, described by several error codes:
+
+    OV_ENOSEEK - Bitstream is not seekable.
+    OV_EINVAL - Invalid argument value; possibly called with an OggVorbis_File structure that isn't open.
+    OV_EREAD - A read from media returned an error.
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+    OV_EBADLINK - Invalid stream section supplied to libvorbisfile, or the requested link is corrupt.
+
+=cut
+
+int
+LibVorbis_ov_time_seek_page(vf, pos)
+    OggVorbis_File *	   vf
+    double	   	   pos
+  CODE:
+    RETVAL = ov_time_seek_page(vf, pos);
+  OUTPUT:
+    RETVAL
+
+
+=head2 ov_raw_seek_lap
+
+Seeks to the offset specified (in compressed raw bytes) within the physical bitstream.
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_raw_seek_lap.html>
+
+-Input:
+  OggVorbis_File,
+  ogg_int64_t (Location to seek to within the file, specified in compressed raw bytes)
+
+-Output:
+  0 for success
+  nonzero indicates failure, described by several error codes:
+
+    OV_ENOSEEK - Bitstream is not seekable.
+    OV_EINVAL - Invalid argument value; possibly called with an OggVorbis_File structure that isn't open.
+    OV_EREAD - A read from media returned an error.
+    OV_EOF - Indicates stream is at end of file immediately after a seek
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+    OV_EBADLINK - Invalid stream section supplied to libvorbisfile, or the requested link is corrupt.
+
+=cut
+
+int
+LibVorbis_ov_raw_seek_lap(vf, pos)
+    OggVorbis_File *	   vf
+    ogg_int64_t	   	   pos
+  CODE:
+    RETVAL = ov_raw_seek_lap(vf, pos);
+  OUTPUT:
+    RETVAL
+
+
+=head2 ov_pcm_seek_lap
+
+Seeks to the offset specified (in pcm samples) within the physical bitstream.
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_pcm_seek_lap.html>
+
+-Input:
+  OggVorbis_File,
+  long (Location to seek to within the file, specified in pcm samples)
+
+-Output:
+  0 for success
+  nonzero indicates failure, described by several error codes:
+
+    OV_ENOSEEK - Bitstream is not seekable.
+    OV_EINVAL - Invalid argument value; possibly called with an OggVorbis_File structure that isn't open.
+    OV_EREAD - A read from media returned an error.
+    OV_EOF - Indicates stream is at end of file immediately after a seek
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+    OV_EBADLINK - Invalid stream section supplied to libvorbisfile, or the requested link is corrupt.
+
+=cut
+
+int
+LibVorbis_ov_pcm_seek_lap(vf, pos)
+    OggVorbis_File *	   vf
+    long	   	   pos
+  CODE:
+    RETVAL = ov_pcm_seek_lap(vf, pos);
+  OUTPUT:
+    RETVAL
+
+
+=head2 ov_time_seek_lap
+
+Seeks to the offset specified (in seconds) within the physical bitstream.
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_time_seek_lap.html>
+
+-Input:
+  OggVorbis_File,
+  double (Location to seek to within the file, specified in seconds)
+
+-Output:
+  0 for success
+  nonzero indicates failure, described by several error codes:
+
+    OV_ENOSEEK - Bitstream is not seekable.
+    OV_EINVAL - Invalid argument value; possibly called with an OggVorbis_File structure that isn't open.
+    OV_EREAD - A read from media returned an error.
+    OV_EOF - Indicates stream is at end of file immediately after a seek
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+    OV_EBADLINK - Invalid stream section supplied to libvorbisfile, or the requested link is corrupt.
+
+=cut
+
+int
+LibVorbis_ov_time_seek_lap(vf, pos)
+    OggVorbis_File *	   vf
+    double	   	   pos
+  CODE:
+    RETVAL = ov_time_seek_lap(vf, pos);
+  OUTPUT:
+    RETVAL
+
+
+=head2 ov_time_page_seek_lap
+
+For seekable streams, ov_time_seek_page_lap seeks to the closest full page preceeding the given time.
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_time_seek_page_lap.html>
+
+-Input:
+  OggVorbis_File,
+  double (Location to seek to within the file, specified in seconds)
+
+-Output:
+  0 for success
+  nonzero indicates failure, described by several error codes:
+
+    OV_ENOSEEK - Bitstream is not seekable.
+    OV_EINVAL - Invalid argument value; possibly called with an OggVorbis_File structure that isn't open.
+    OV_EREAD - A read from media returned an error.
+    OV_EOF - Indicates stream is at end of file immediately after a seek
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+    OV_EBADLINK - Invalid stream section supplied to libvorbisfile, or the requested link is corrupt.
+
+=cut
+
+int
+LibVorbis_ov_time_seek_page_lap(vf, pos)
+    OggVorbis_File *	   vf
+    double	   	   pos
+  CODE:
+    RETVAL = ov_time_seek_page_lap(vf, pos);
+  OUTPUT:
+    RETVAL
+
+
+=head2 ov_pcm_page_seek_lap
+
+Seeks to the closest page preceding the specified location (in pcm samples) within the physical bitstream.
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_pcm_seek_page_lap.html>
+
+-Input:
+  OggVorbis_File,
+  ogg_int64_t (Location to seek to within the file, specified in pcm samples)
+
+-Output:
+  0 for success
+  nonzero indicates failure, described by several error codes:
+
+    OV_ENOSEEK - Bitstream is not seekable.
+    OV_EINVAL - Invalid argument value; possibly called with an OggVorbis_File structure that isn't open.
+    OV_EREAD - A read from media returned an error.
+    OV_EOF - Indicates stream is at end of file immediately after a seek
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+    OV_EBADLINK - Invalid stream section supplied to libvorbisfile, or the requested link is corrupt.
+
+=cut
+
+int
+LibVorbis_ov_pcm_seek_page_lap(vf, pos)
+    OggVorbis_File *	   vf
+    ogg_int64_t	   	   pos
+  CODE:
+    RETVAL = ov_pcm_seek_page_lap(vf, pos);
+  OUTPUT:
+    RETVAL
 
 
 =head ov_streams
