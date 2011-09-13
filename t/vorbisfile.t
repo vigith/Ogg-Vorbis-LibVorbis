@@ -1,5 +1,5 @@
-use Test::More tests => 31;
-BEGIN { use_ok('Ogg::Vorbis::LibVorbis') };
+use Test::More tests => 37;
+BEGIN { use_ok('Ogg::Vorbis::LibVorbis'); $|++ };
 
 
 my $fail = 0;
@@ -35,7 +35,7 @@ ok($vi, "vorbis_info");
 # Open Vorbis File
 #my $filename = "t/I-15bis.ogg"; #"t/test.ogg";
 my $filename = "t/test.ogg";
-open IN, $filename or die "can't open [$filename] : $!";
+open IN, $filename or die "can't open [$filename] : $!"; 
 my $status = Ogg::Vorbis::LibVorbis::ov_open(*IN,  $vf, 0, 0);
 ok($status == 0, "ov_open");
 
@@ -131,13 +131,52 @@ $status = Ogg::Vorbis::LibVorbis::ov_time_seek_lap($vf, 0); # our audio test fil
 ok($status == 0, "ov_time_seek_lap");
 
 # ov_pcm_seek_page_lap
-$status = Ogg::Vorbis::LibVorbis::ov_pcm_seek_page_lap($vf, 0); # our audio test file is hardly 1 sec :-)
+$status = Ogg::Vorbis::LibVorbis::ov_pcm_seek_page_lap($vf, 0);
 ok($status == 0, "ov_pcm_seek_page_lap");
 
 # ov_time_seek_page_lap
-$status = Ogg::Vorbis::LibVorbis::ov_time_seek_page_lap($vf, 0); # our audio test file is hardly 1 sec :-)
+$status = Ogg::Vorbis::LibVorbis::ov_time_seek_page_lap($vf, 0); 
 ok($status == 0, "ov_time_seek_page_lap");
 
 # ov_clear
 $status = Ogg::Vorbis::LibVorbis::ov_clear($vf);
 ok($status == 0, "ov_clear");
+
+# ov_fopen setup
+$vf = Ogg::Vorbis::LibVorbis::make_oggvorbis_file(); # OggVorbis_File
+# ov_fopen
+$status = Ogg::Vorbis::LibVorbis::ov_fopen($filename, $vf);
+ok($status == 0, "ov_fopen");
+$status = Ogg::Vorbis::LibVorbis::get_vorbis_info($vi);
+# ov_clear
+$status = Ogg::Vorbis::LibVorbis::ov_clear($vf);
+
+# ov_open_callbacks setup
+$vf = Ogg::Vorbis::LibVorbis::make_oggvorbis_file(); # OggVorbis_File
+# ov_open_callbacks
+open IN, $filename or die "can't open [$filename] : $!"; 
+$status = Ogg::Vorbis::LibVorbis::ov_open_callbacks(*IN, $vf, 0, 0);
+ok($status == 0, "ov_open_callbacks");
+$vi = Ogg::Vorbis::LibVorbis::ov_info($vf, 0);
+$status = Ogg::Vorbis::LibVorbis::get_vorbis_info($vi);
+# ov_clear
+$status = Ogg::Vorbis::LibVorbis::ov_clear($vf);
+
+
+# ov_test setup
+$vf = Ogg::Vorbis::LibVorbis::make_oggvorbis_file(); 
+open IN, $filename or die "can't open [$filename] : $!"; 
+$status = Ogg::Vorbis::LibVorbis::ov_test(*IN, $vf, 0, 0);
+ok($status == 0, "ov_test");
+$status = Ogg::Vorbis::LibVorbis::ov_test_open($vf);
+ok($status == 0, "ov_test_open");
+Ogg::Vorbis::LibVorbis::ov_clear($vf);
+
+# ov_test_callbacks setup
+$vf = Ogg::Vorbis::LibVorbis::make_oggvorbis_file(); 
+open IN, $filename or die "can't open [$filename] : $!"; 
+$status = Ogg::Vorbis::LibVorbis::ov_test_callbacks(*IN, $vf, 0, 0);
+ok($status == 0, "ov_test");
+$status = Ogg::Vorbis::LibVorbis::ov_test_open($vf);
+ok($status == 0, "ov_test_open");
+Ogg::Vorbis::LibVorbis::ov_clear($vf);

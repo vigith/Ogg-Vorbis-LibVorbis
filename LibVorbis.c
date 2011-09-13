@@ -14,6 +14,11 @@
 #include "ppport.h"
 
 #include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
+#include <errno.h>
+#include <stdlib.h>
+
 #include <ogg/ogg.h>
 #include <vorbis/codec.h>
 #include <vorbis/vorbisenc.h>
@@ -21,10 +26,77 @@
 
 #include "const-c.inc"
 
+static size_t ovcb_read(void *ptr, size_t size, size_t nmemb, void *datasource);
+static int    ovcb_seek(void *datasource, ogg_int64_t offset, int whence);
+static int    ovcb_close(void *datasource);
+static long   ovcb_tell(void *datasource);
+
+/* http://www.xiph.org/ogg/vorbis/doc/vorbisfile/ov_callbacks.html */
+ov_callbacks vorbis_callbacks = {
+	ovcb_read,
+	ovcb_seek,
+	ovcb_close,
+	ovcb_tell
+};
+
+/* Allow multiple instances of the decoder object. Stuff each filehandle into (void*)stream */
+typedef struct {
+	int is_streaming;
+	int bytes_streamed;
+	int last_bitstream;
+	PerlIO *stream;
+
+} ocvb_datasource;
+
 typedef PerlIO *        OutputStream;
 typedef PerlIO *        InputStream;
 
-#line 28 "LibVorbis.c"
+/* useful items from XMMS */
+static size_t ovcb_read(void *ptr, size_t size, size_t nmemb, void *vdatasource) {
+
+  size_t read_bytes = 0;
+  ocvb_datasource *datasource = vdatasource;
+
+  read_bytes = PerlIO_read(datasource->stream, ptr, size * nmemb);
+  datasource->bytes_streamed += read_bytes;
+
+  return read_bytes;
+}
+
+static int ovcb_seek(void *vdatasource, ogg_int64_t offset, int whence) {
+
+  ocvb_datasource *datasource = vdatasource;
+
+  if (datasource->is_streaming) {
+    return -1;
+  }
+
+  /* For some reason PerlIO_seek fails miserably here. < 5.8.1 works */
+  /* return PerlIO_seek(datasource->stream, offset, whence); */
+
+  return fseek(PerlIO_findFILE(datasource->stream), offset, whence);
+}
+
+static int ovcb_close(void *vdatasource) {
+
+  ocvb_datasource *datasource = vdatasource;
+
+  return PerlIO_close(datasource->stream);
+}
+
+static long ovcb_tell(void *vdatasource) {
+
+  ocvb_datasource *datasource = vdatasource;
+
+  if (datasource->is_streaming) {
+    return datasource->bytes_streamed;
+  }
+
+  return PerlIO_tell(datasource->stream);
+}
+
+
+#line 100 "LibVorbis.c"
 #ifndef PERL_UNUSED_VAR
 #  define PERL_UNUSED_VAR(var) if (0) var = var
 #endif
@@ -76,7 +148,7 @@ S_croak_xs_usage(pTHX_ const CV *const cv, const char *const params)
 #define newXSproto_portable(name, c_impl, file, proto) (PL_Sv=(SV*)newXS(name, c_impl, file), sv_setpv(PL_Sv, proto), (CV*)PL_Sv)
 #endif /* !defined(newXS_flags) */
 
-#line 80 "LibVorbis.c"
+#line 152 "LibVorbis.c"
 
 /* INCLUDE:  Including 'const-xs.inc' from 'LibVorbis.xs' */
 
@@ -105,7 +177,7 @@ XS(XS_Ogg__Vorbis__LibVorbis_constant)
 	IV		iv;
 	/* NV		nv;	Uncomment this if you need to return NVs */
 	/* const char	*pv;	Uncomment this if you need to return PVs */
-#line 109 "LibVorbis.c"
+#line 181 "LibVorbis.c"
 	SV *	sv = ST(0);
 	const char *	s = SvPV(sv, len);
 #line 18 "./const-xs.inc"
@@ -182,7 +254,7 @@ XS(XS_Ogg__Vorbis__LibVorbis_constant)
                type, s));
           PUSHs(sv);
         }
-#line 186 "LibVorbis.c"
+#line 258 "LibVorbis.c"
 	PUTBACK;
 	return;
     }
@@ -203,15 +275,15 @@ XS(XS_Ogg__Vorbis__LibVorbis_make_oggvorbis_file)
     if (items != 0)
        croak_xs_usage(cv,  "");
     {
-#line 44 "LibVorbis.xs"
+#line 116 "LibVorbis.xs"
     OggVorbis_File *memory;
-#line 209 "LibVorbis.c"
+#line 281 "LibVorbis.c"
 	OggVorbis_File *	RETVAL;
 	dXSTARG;
-#line 46 "LibVorbis.xs"
+#line 118 "LibVorbis.xs"
     New(0, memory, 1, OggVorbis_File);
     RETVAL = memory;
-#line 215 "LibVorbis.c"
+#line 287 "LibVorbis.c"
 	XSprePUSH; PUSHi(PTR2IV(RETVAL));
     }
     XSRETURN(1);
@@ -229,15 +301,15 @@ XS(XS_Ogg__Vorbis__LibVorbis_make_vorbis_info)
     if (items != 0)
        croak_xs_usage(cv,  "");
     {
-#line 67 "LibVorbis.xs"
+#line 139 "LibVorbis.xs"
     vorbis_info *	memory;
-#line 235 "LibVorbis.c"
+#line 307 "LibVorbis.c"
 	vorbis_info *	RETVAL;
 	dXSTARG;
-#line 69 "LibVorbis.xs"
+#line 141 "LibVorbis.xs"
     New(0, memory, 1, vorbis_info);
     RETVAL = memory;
-#line 241 "LibVorbis.c"
+#line 313 "LibVorbis.c"
 	XSprePUSH; PUSHi(PTR2IV(RETVAL));
     }
     XSRETURN(1);
@@ -259,19 +331,265 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_open)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(1)));
 	char *	initial = (char *)SvPV_nolen(ST(2));
 	int	ibytes = (int)SvIV(ST(3));
-#line 112 "LibVorbis.xs"
+#line 184 "LibVorbis.xs"
     FILE *fp = PerlIO_findFILE(f);
-#line 265 "LibVorbis.c"
+#line 337 "LibVorbis.c"
 	int	RETVAL;
 	dXSTARG;
-#line 114 "LibVorbis.xs"
+#line 186 "LibVorbis.xs"
     /* check whether it is a valid file handler */
     if (fp == (FILE*) 0 || fileno(fp) <= 0) {   
       Perl_croak(aTHX_ "Expected Open FILE HANDLER");
     }
     /* open the vorbis file */
     RETVAL = ov_open(fp, vf, initial, ibytes);
-#line 275 "LibVorbis.c"
+#line 347 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_ov_fopen); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_ov_fopen)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 2)
+       croak_xs_usage(cv,  "path, vf");
+    {
+	char *	path = (char *)SvPV_nolen(ST(0));
+	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(1)));
+	int	RETVAL;
+	dXSTARG;
+#line 221 "LibVorbis.xs"
+    RETVAL = ov_fopen(path, vf);
+#line 371 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_ov_open_callbacks); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_ov_open_callbacks)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 4)
+       croak_xs_usage(cv,  "path, vf, initial, ibytes");
+    {
+	SV *	path = ST(0);
+	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(1)));
+	char *	initial = (char *)SvPV_nolen(ST(2));
+	int	ibytes = (int)SvIV(ST(3));
+#line 262 "LibVorbis.xs"
+    FILE *fp;
+#line 395 "LibVorbis.c"
+	int	RETVAL;
+	dXSTARG;
+#line 264 "LibVorbis.xs"
+    int ret = 10;
+
+    /* our stash for streams */
+    ocvb_datasource *datasource = (ocvb_datasource *) safemalloc(sizeof(ocvb_datasource));
+    memset(datasource, 0, sizeof(ocvb_datasource));
+
+    /* check and see if a pathname was passed in, otherwise it might be a
+     * IO::Socket subclass, or even a *FH Glob */
+    if (SvOK(path) && (SvTYPE(SvRV(path)) != SVt_PVGV)) {
+
+      if ((datasource->stream = PerlIO_open((char*)SvPV_nolen(path), "r")) == NULL) {
+        safefree(vf);
+        printf("failed on open: [%d] - [%s]\n", errno, strerror(errno));
+        XSRETURN_UNDEF;
+      }
+
+      datasource->is_streaming = 0;
+
+    } else if (SvOK(path)) {
+
+      /* Did we get a Glob, or a IO::Socket subclass? */		
+      if (sv_isobject(path) && sv_derived_from(path, "IO::Socket")) {
+        datasource->is_streaming = 1;
+      } else {
+
+        datasource->is_streaming = 0;
+      }
+
+      /* dereference and get the SV* that contains the Magic & FH,
+       * then pull the fd from the PerlIO object */
+      datasource->stream = IoIFP(GvIOp(SvRV(path)));
+
+    } else {
+
+      fp = PerlIO_findFILE((PerlIO *)IoIFP(sv_2io(path)));
+      /* check whether it is a valid file handler */
+      if (fp == (FILE*) 0 || fileno(fp) <= 0) {   
+         XSRETURN_UNDEF;
+      }
+      datasource->stream = (PerlIO *)IoIFP(sv_2io(path));
+    }
+
+    if ((ret = ov_open_callbacks((void*)datasource, vf, NULL, 0, vorbis_callbacks)) < 0) {
+      warn("Failed on registering callbacks: [%d]\n", ret);
+      printf("failed on open: [%d] - [%s]\n", errno, strerror(errno));
+      ov_clear(vf);
+
+      XSRETURN_UNDEF;
+    }
+
+    datasource->bytes_streamed = 0;
+    datasource->last_bitstream = -1;
+
+    RETVAL = ret;
+
+#line 454 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_ov_test); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_ov_test)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 4)
+       croak_xs_usage(cv,  "f, vf, initial, ibytes");
+    {
+	InputStream	f = IoIFP(sv_2io(ST(0)));
+	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(1)));
+	char *	initial = (char *)SvPV_nolen(ST(2));
+	long	ibytes = (long)SvIV(ST(3));
+#line 353 "LibVorbis.xs"
+    FILE *fp = PerlIO_findFILE(f);
+#line 478 "LibVorbis.c"
+	int	RETVAL;
+	dXSTARG;
+#line 355 "LibVorbis.xs"
+    if (fp == (FILE*) 0 || fileno(fp) <= 0) {   
+       XSRETURN_UNDEF;
+    }    
+    /* open the vorbis file */
+    RETVAL = ov_test(fp, vf, initial, ibytes);
+#line 487 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_ov_test_open); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_ov_test_open)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 1)
+       croak_xs_usage(cv,  "vf");
+    {
+	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
+	int	RETVAL;
+	dXSTARG;
+#line 388 "LibVorbis.xs"
+    RETVAL = ov_test_open(vf);
+#line 510 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_ov_test_callbacks); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_ov_test_callbacks)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 4)
+       croak_xs_usage(cv,  "path, vf, initial, ibytes");
+    {
+	SV *	path = ST(0);
+	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(1)));
+	char *	initial = (char *)SvPV_nolen(ST(2));
+	int	ibytes = (int)SvIV(ST(3));
+#line 429 "LibVorbis.xs"
+    FILE *fp;
+#line 534 "LibVorbis.c"
+	int	RETVAL;
+	dXSTARG;
+#line 431 "LibVorbis.xs"
+    int ret = 10;
+
+    /* our stash for streams */
+    ocvb_datasource *datasource = (ocvb_datasource *) safemalloc(sizeof(ocvb_datasource));
+    memset(datasource, 0, sizeof(ocvb_datasource));
+
+    /* check and see if a pathname was passed in, otherwise it might be a
+     * IO::Socket subclass, or even a *FH Glob */
+    if (SvOK(path) && (SvTYPE(SvRV(path)) != SVt_PVGV)) {
+
+      if ((datasource->stream = PerlIO_open((char*)SvPV_nolen(path), "r")) == NULL) {
+        safefree(vf);
+        printf("failed on open: [%d] - [%s]\n", errno, strerror(errno));
+        XSRETURN_UNDEF;
+      }
+
+      datasource->is_streaming = 0;
+
+    } else if (SvOK(path)) {
+
+      /* Did we get a Glob, or a IO::Socket subclass? */		
+      if (sv_isobject(path) && sv_derived_from(path, "IO::Socket")) {
+        datasource->is_streaming = 1;
+      } else {
+
+        datasource->is_streaming = 0;
+      }
+
+      /* dereference and get the SV* that contains the Magic & FH,
+       * then pull the fd from the PerlIO object */
+      datasource->stream = IoIFP(GvIOp(SvRV(path)));
+
+    } else {
+
+      fp = PerlIO_findFILE((PerlIO *)IoIFP(sv_2io(path)));
+      /* check whether it is a valid file handler */
+      if (fp == (FILE*) 0 || fileno(fp) <= 0) {   
+         XSRETURN_UNDEF;
+      }
+      datasource->stream = (PerlIO *)IoIFP(sv_2io(path));
+    }
+
+    if ((ret = ov_test_callbacks((void*)datasource, vf, NULL, 0, vorbis_callbacks)) < 0) {
+      warn("Failed on registering callbacks: [%d]\n", ret);
+      printf("failed on open: [%d] - [%s]\n", errno, strerror(errno));
+      ov_clear(vf);
+
+      XSRETURN_UNDEF;
+    }
+
+    datasource->bytes_streamed = 0;
+    datasource->last_bitstream = -1;
+
+    RETVAL = ret;
+
+#line 593 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -292,9 +610,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_clear)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	int	RETVAL;
 	dXSTARG;
-#line 141 "LibVorbis.xs"
+#line 508 "LibVorbis.xs"
     RETVAL = ov_clear(vf);
-#line 298 "LibVorbis.c"
+#line 616 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -315,9 +633,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_seekable)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	int	RETVAL;
 	dXSTARG;
-#line 164 "LibVorbis.xs"
+#line 531 "LibVorbis.xs"
     RETVAL = ov_seekable(vf);
-#line 321 "LibVorbis.c"
+#line 639 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -339,9 +657,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_time_total)
 	int	i = (int)SvIV(ST(1));
 	double	RETVAL;
 	dXSTARG;
-#line 190 "LibVorbis.xs"
+#line 557 "LibVorbis.xs"
     RETVAL = ov_time_total(vf, i);
-#line 345 "LibVorbis.c"
+#line 663 "LibVorbis.c"
 	XSprePUSH; PUSHn((double)RETVAL);
     }
     XSRETURN(1);
@@ -363,9 +681,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_time_seek)
 	double	s = (double)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 221 "LibVorbis.xs"
+#line 588 "LibVorbis.xs"
     RETVAL = ov_time_seek(vf, s);
-#line 369 "LibVorbis.c"
+#line 687 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -387,9 +705,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_raw_seek)
 	long	s = (long)SvIV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 252 "LibVorbis.xs"
+#line 619 "LibVorbis.xs"
     RETVAL = ov_raw_seek(vf, s);
-#line 393 "LibVorbis.c"
+#line 711 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -411,9 +729,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_pcm_seek)
 	ogg_int64_t	s = (ogg_int64_t)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 283 "LibVorbis.xs"
+#line 650 "LibVorbis.xs"
     RETVAL = ov_pcm_seek(vf, s);
-#line 417 "LibVorbis.c"
+#line 735 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -435,9 +753,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_pcm_seek_page)
 	ogg_int64_t	pos = (ogg_int64_t)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 314 "LibVorbis.xs"
+#line 681 "LibVorbis.xs"
     RETVAL = ov_pcm_seek_page(vf, pos);
-#line 441 "LibVorbis.c"
+#line 759 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -459,9 +777,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_time_seek_page)
 	double	pos = (double)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 345 "LibVorbis.xs"
+#line 712 "LibVorbis.xs"
     RETVAL = ov_time_seek_page(vf, pos);
-#line 465 "LibVorbis.c"
+#line 783 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -483,9 +801,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_raw_seek_lap)
 	ogg_int64_t	pos = (ogg_int64_t)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 377 "LibVorbis.xs"
+#line 744 "LibVorbis.xs"
     RETVAL = ov_raw_seek_lap(vf, pos);
-#line 489 "LibVorbis.c"
+#line 807 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -507,9 +825,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_pcm_seek_lap)
 	long	pos = (long)SvIV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 409 "LibVorbis.xs"
+#line 776 "LibVorbis.xs"
     RETVAL = ov_pcm_seek_lap(vf, pos);
-#line 513 "LibVorbis.c"
+#line 831 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -531,9 +849,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_time_seek_lap)
 	double	pos = (double)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 441 "LibVorbis.xs"
+#line 808 "LibVorbis.xs"
     RETVAL = ov_time_seek_lap(vf, pos);
-#line 537 "LibVorbis.c"
+#line 855 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -555,9 +873,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_time_seek_page_lap)
 	double	pos = (double)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 473 "LibVorbis.xs"
+#line 840 "LibVorbis.xs"
     RETVAL = ov_time_seek_page_lap(vf, pos);
-#line 561 "LibVorbis.c"
+#line 879 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -579,9 +897,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_pcm_seek_page_lap)
 	ogg_int64_t	pos = (ogg_int64_t)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 505 "LibVorbis.xs"
+#line 872 "LibVorbis.xs"
     RETVAL = ov_pcm_seek_page_lap(vf, pos);
-#line 585 "LibVorbis.c"
+#line 903 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -602,9 +920,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_streams)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	long	RETVAL;
 	dXSTARG;
-#line 528 "LibVorbis.xs"
+#line 895 "LibVorbis.xs"
     RETVAL = ov_streams(vf);
-#line 608 "LibVorbis.c"
+#line 926 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -626,9 +944,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_info)
 	int	link = (int)SvIV(ST(1));
 	vorbis_info *	RETVAL;
 	dXSTARG;
-#line 553 "LibVorbis.xs"
+#line 920 "LibVorbis.xs"
     RETVAL = ov_info(vf, link);
-#line 632 "LibVorbis.c"
+#line 950 "LibVorbis.c"
 	XSprePUSH; PUSHi(PTR2IV(RETVAL));
     }
     XSRETURN(1);
@@ -650,9 +968,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_bitrate)
 	int	i = (int)SvIV(ST(1));
 	long	RETVAL;
 	dXSTARG;
-#line 578 "LibVorbis.xs"
+#line 945 "LibVorbis.xs"
     RETVAL = ov_bitrate(vf, i);
-#line 656 "LibVorbis.c"
+#line 974 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -673,9 +991,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_bitrate_instant)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	long	RETVAL;
 	dXSTARG;
-#line 602 "LibVorbis.xs"
+#line 969 "LibVorbis.xs"
     RETVAL = ov_bitrate_instant(vf);
-#line 679 "LibVorbis.c"
+#line 997 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -697,9 +1015,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_serialnumber)
 	int	i = (int)SvIV(ST(1));
 	long	RETVAL;
 	dXSTARG;
-#line 627 "LibVorbis.xs"
+#line 994 "LibVorbis.xs"
     RETVAL = ov_serialnumber(vf, i);
-#line 703 "LibVorbis.c"
+#line 1021 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -721,9 +1039,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_raw_total)
 	int	i = (int)SvIV(ST(1));
 	long	RETVAL;
 	dXSTARG;
-#line 653 "LibVorbis.xs"
+#line 1020 "LibVorbis.xs"
     RETVAL = ov_raw_total(vf, i);
-#line 727 "LibVorbis.c"
+#line 1045 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -745,9 +1063,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_pcm_total)
 	int	i = (int)SvIV(ST(1));
 	ogg_int64_t	RETVAL;
 	dXSTARG;
-#line 678 "LibVorbis.xs"
+#line 1045 "LibVorbis.xs"
     RETVAL = ov_pcm_total(vf, i);
-#line 751 "LibVorbis.c"
+#line 1069 "LibVorbis.c"
 	XSprePUSH; PUSHn((NV)RETVAL);
     }
     XSRETURN(1);
@@ -768,9 +1086,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_raw_tell)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	ogg_int64_t	RETVAL;
 	dXSTARG;
-#line 701 "LibVorbis.xs"
+#line 1068 "LibVorbis.xs"
     RETVAL = ov_raw_tell(vf);
-#line 774 "LibVorbis.c"
+#line 1092 "LibVorbis.c"
 	XSprePUSH; PUSHn((NV)RETVAL);
     }
     XSRETURN(1);
@@ -791,9 +1109,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_pcm_tell)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	ogg_int64_t	RETVAL;
 	dXSTARG;
-#line 724 "LibVorbis.xs"
+#line 1091 "LibVorbis.xs"
     RETVAL = ov_pcm_tell(vf);
-#line 797 "LibVorbis.c"
+#line 1115 "LibVorbis.c"
 	XSprePUSH; PUSHn((NV)RETVAL);
     }
     XSRETURN(1);
@@ -814,9 +1132,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_time_tell)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	ogg_int64_t	RETVAL;
 	dXSTARG;
-#line 747 "LibVorbis.xs"
+#line 1114 "LibVorbis.xs"
     RETVAL = ov_time_tell(vf);
-#line 820 "LibVorbis.c"
+#line 1138 "LibVorbis.c"
 	XSprePUSH; PUSHn((NV)RETVAL);
     }
     XSRETURN(1);
@@ -838,9 +1156,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_comment)
 	int	link = (int)SvIV(ST(1));
 	vorbis_comment *	RETVAL;
 	dXSTARG;
-#line 772 "LibVorbis.xs"
+#line 1139 "LibVorbis.xs"
     RETVAL = ov_comment(vf, link);
-#line 844 "LibVorbis.c"
+#line 1162 "LibVorbis.c"
 	XSprePUSH; PUSHi(PTR2IV(RETVAL));
     }
     XSRETURN(1);
@@ -859,11 +1177,11 @@ XS(XS_Ogg__Vorbis__LibVorbis_get_vorbis_info)
        croak_xs_usage(cv,  "vi");
     {
 	vorbis_info *	vi = INT2PTR(vorbis_info *,SvIV(ST(0)));
-#line 801 "LibVorbis.xs"
+#line 1168 "LibVorbis.xs"
     HV * hash;
-#line 865 "LibVorbis.c"
+#line 1183 "LibVorbis.c"
 	HV *	RETVAL;
-#line 803 "LibVorbis.xs"
+#line 1170 "LibVorbis.xs"
     hash = newHV();
 
     sv_2mortal((SV *)hash);	/* convert the HASH to a mortal */
@@ -877,7 +1195,7 @@ XS(XS_Ogg__Vorbis__LibVorbis_get_vorbis_info)
     hv_store(hash, "codec_setup", strlen("codec_setup"), newSViv(PTR2IV(vi->codec_setup)), 0);
 
     RETVAL = hash;
-#line 881 "LibVorbis.c"
+#line 1199 "LibVorbis.c"
 	ST(0) = newRV((SV*)RETVAL);
 	sv_2mortal(ST(0));
     }
@@ -897,14 +1215,14 @@ XS(XS_Ogg__Vorbis__LibVorbis_get_vorbis_comment)
        croak_xs_usage(cv,  "vc");
     {
 	vorbis_comment *	vc = INT2PTR(vorbis_comment *,SvIV(ST(0)));
-#line 837 "LibVorbis.xs"
+#line 1204 "LibVorbis.xs"
     HV * hash;
     AV * uc;			/* user comments */
     AV * cl;			/* comment lenth */
     int i = 0;
-#line 906 "LibVorbis.c"
+#line 1224 "LibVorbis.c"
 	HV *	RETVAL;
-#line 842 "LibVorbis.xs"
+#line 1209 "LibVorbis.xs"
     hash = newHV();
     sv_2mortal((SV *)hash);
 
@@ -927,7 +1245,7 @@ XS(XS_Ogg__Vorbis__LibVorbis_get_vorbis_comment)
 
     RETVAL = hash;
 
-#line 931 "LibVorbis.c"
+#line 1249 "LibVorbis.c"
 	ST(0) = newRV((SV*)RETVAL);
 	sv_2mortal(ST(0));
     }
@@ -959,6 +1277,11 @@ XS(boot_Ogg__Vorbis__LibVorbis)
         newXS("Ogg::Vorbis::LibVorbis::make_oggvorbis_file", XS_Ogg__Vorbis__LibVorbis_make_oggvorbis_file, file);
         newXS("Ogg::Vorbis::LibVorbis::make_vorbis_info", XS_Ogg__Vorbis__LibVorbis_make_vorbis_info, file);
         newXS("Ogg::Vorbis::LibVorbis::ov_open", XS_Ogg__Vorbis__LibVorbis_ov_open, file);
+        newXS("Ogg::Vorbis::LibVorbis::ov_fopen", XS_Ogg__Vorbis__LibVorbis_ov_fopen, file);
+        newXS("Ogg::Vorbis::LibVorbis::ov_open_callbacks", XS_Ogg__Vorbis__LibVorbis_ov_open_callbacks, file);
+        newXS("Ogg::Vorbis::LibVorbis::ov_test", XS_Ogg__Vorbis__LibVorbis_ov_test, file);
+        newXS("Ogg::Vorbis::LibVorbis::ov_test_open", XS_Ogg__Vorbis__LibVorbis_ov_test_open, file);
+        newXS("Ogg::Vorbis::LibVorbis::ov_test_callbacks", XS_Ogg__Vorbis__LibVorbis_ov_test_callbacks, file);
         newXS("Ogg::Vorbis::LibVorbis::ov_clear", XS_Ogg__Vorbis__LibVorbis_ov_clear, file);
         newXS("Ogg::Vorbis::LibVorbis::ov_seekable", XS_Ogg__Vorbis__LibVorbis_ov_seekable, file);
         newXS("Ogg::Vorbis::LibVorbis::ov_time_total", XS_Ogg__Vorbis__LibVorbis_ov_time_total, file);

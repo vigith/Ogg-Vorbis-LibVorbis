@@ -5,6 +5,11 @@
 #include "ppport.h"
 
 #include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
+#include <errno.h>
+#include <stdlib.h>
+
 #include <ogg/ogg.h>
 #include <vorbis/codec.h>
 #include <vorbis/vorbisenc.h>
@@ -12,8 +17,75 @@
 
 #include "const-c.inc"
 
+static size_t ovcb_read(void *ptr, size_t size, size_t nmemb, void *datasource);
+static int    ovcb_seek(void *datasource, ogg_int64_t offset, int whence);
+static int    ovcb_close(void *datasource);
+static long   ovcb_tell(void *datasource);
+
+/* http://www.xiph.org/ogg/vorbis/doc/vorbisfile/ov_callbacks.html */
+ov_callbacks vorbis_callbacks = {
+	ovcb_read,
+	ovcb_seek,
+	ovcb_close,
+	ovcb_tell
+};
+
+/* Allow multiple instances of the decoder object. Stuff each filehandle into (void*)stream */
+typedef struct {
+	int is_streaming;
+	int bytes_streamed;
+	int last_bitstream;
+	PerlIO *stream;
+
+} ocvb_datasource;
+
 typedef PerlIO *        OutputStream;
 typedef PerlIO *        InputStream;
+
+/* useful items from XMMS */
+static size_t ovcb_read(void *ptr, size_t size, size_t nmemb, void *vdatasource) {
+
+  size_t read_bytes = 0;
+  ocvb_datasource *datasource = vdatasource;
+
+  read_bytes = PerlIO_read(datasource->stream, ptr, size * nmemb);
+  datasource->bytes_streamed += read_bytes;
+
+  return read_bytes;
+}
+
+static int ovcb_seek(void *vdatasource, ogg_int64_t offset, int whence) {
+
+  ocvb_datasource *datasource = vdatasource;
+
+  if (datasource->is_streaming) {
+    return -1;
+  }
+
+  /* For some reason PerlIO_seek fails miserably here. < 5.8.1 works */
+  /* return PerlIO_seek(datasource->stream, offset, whence); */
+
+  return fseek(PerlIO_findFILE(datasource->stream), offset, whence);
+}
+
+static int ovcb_close(void *vdatasource) {
+
+  ocvb_datasource *datasource = vdatasource;
+
+  return PerlIO_close(datasource->stream);
+}
+
+static long ovcb_tell(void *vdatasource) {
+
+  ocvb_datasource *datasource = vdatasource;
+
+  if (datasource->is_streaming) {
+    return datasource->bytes_streamed;
+  }
+
+  return PerlIO_tell(datasource->stream);
+}
+
 
 MODULE = Ogg::Vorbis::LibVorbis		PACKAGE = Ogg::Vorbis::LibVorbis	PREFIX = LibVorbis_
 
@@ -119,6 +191,301 @@ LibVorbis_ov_open(f, vf, initial, ibytes)
     RETVAL = ov_open(fp, vf, initial, ibytes);
   OUTPUT:
     RETVAL
+
+=head2 ov_fopen
+
+This is the simplest function used to open and initialize an OggVorbis_File structure.
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_fopen.html>
+
+-Input:
+  char *, (null terminated string containing a file path suitable for passing to fopen())
+  OggVorbis_File
+
+-Output:
+  0 indicates success
+  less than zero for failure:
+
+    OV_EREAD - A read from media returned an error.
+    OV_ENOTVORBIS - Bitstream does not contain any Vorbis data.
+    OV_EVERSION - Vorbis version mismatch.
+    OV_EBADHEADER - Invalid Vorbis bitstream header.
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+
+=cut
+
+int
+LibVorbis_ov_fopen(path, vf)
+    char *		 path
+    OggVorbis_File *	 vf
+  CODE:
+    RETVAL = ov_fopen(path, vf);
+  OUTPUT:
+    RETVAL
+
+
+=head2 ov_open_callbacks
+
+an alternative function used to open and initialize an OggVorbis_File structure when using a data source 
+other than a file, when its necessary to modify default file access behavior.
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_open.html>
+
+B<Please read the official ov_open_callbacks doc before you use this.> The perl version uses
+a different approach and uses vorbis_callbacks with custom functions to read, seek tell and close.
+
+B<this module can accept file name, network socket or a file pointer.>
+
+-Input:
+  void *, (data source)
+  OggVorbis_File, A pointer to the OggVorbis_File structure,
+  char *, Typically set to NULL,
+  int, Typically set to 0.
+
+-Output:
+  0 indicates succes,
+  less than zero for failure:
+
+    OV_EREAD - A read from media returned an error.
+    OV_ENOTVORBIS - Bitstream is not Vorbis data.
+    OV_EVERSION - Vorbis version mismatch.
+    OV_EBADHEADER - Invalid Vorbis bitstream header.
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+
+=cut
+
+int
+LibVorbis_ov_open_callbacks(path, vf, initial, ibytes)
+    SV *       	     path  
+    OggVorbis_File * vf
+    char *	     initial
+    int		     ibytes
+  PREINIT:
+    FILE *fp;
+  CODE:
+    int ret = 10;
+
+    /* our stash for streams */
+    ocvb_datasource *datasource = (ocvb_datasource *) safemalloc(sizeof(ocvb_datasource));
+    memset(datasource, 0, sizeof(ocvb_datasource));
+
+    /* check and see if a pathname was passed in, otherwise it might be a
+     * IO::Socket subclass, or even a *FH Glob */
+    if (SvOK(path) && (SvTYPE(SvRV(path)) != SVt_PVGV)) {
+
+      if ((datasource->stream = PerlIO_open((char*)SvPV_nolen(path), "r")) == NULL) {
+        safefree(vf);
+        printf("failed on open: [%d] - [%s]\n", errno, strerror(errno));
+        XSRETURN_UNDEF;
+      }
+
+      datasource->is_streaming = 0;
+
+    } else if (SvOK(path)) {
+
+      /* Did we get a Glob, or a IO::Socket subclass? */		
+      if (sv_isobject(path) && sv_derived_from(path, "IO::Socket")) {
+        datasource->is_streaming = 1;
+      } else {
+
+        datasource->is_streaming = 0;
+      }
+
+      /* dereference and get the SV* that contains the Magic & FH,
+       * then pull the fd from the PerlIO object */
+      datasource->stream = IoIFP(GvIOp(SvRV(path)));
+
+    } else {
+
+      fp = PerlIO_findFILE((PerlIO *)IoIFP(sv_2io(path)));
+      /* check whether it is a valid file handler */
+      if (fp == (FILE*) 0 || fileno(fp) <= 0) {   
+         XSRETURN_UNDEF;
+      }
+      datasource->stream = (PerlIO *)IoIFP(sv_2io(path));
+    }
+
+    if ((ret = ov_open_callbacks((void*)datasource, vf, NULL, 0, vorbis_callbacks)) < 0) {
+      warn("Failed on registering callbacks: [%d]\n", ret);
+      printf("failed on open: [%d] - [%s]\n", errno, strerror(errno));
+      ov_clear(vf);
+
+      XSRETURN_UNDEF;
+    }
+
+    datasource->bytes_streamed = 0;
+    datasource->last_bitstream = -1;
+
+    RETVAL = ret;
+
+  OUTPUT:
+    RETVAL
+
+
+=head2 ov_test
+
+This partially opens a vorbis file to test for Vorbis-ness.
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_test.html>
+
+-Input:
+  FILE *, File pointer to an already opened file or pipe,
+  OggVorbis_File, A pointer to the OggVorbis_File structure,
+  char *, Typically set to NULL,
+  int, Typically set to 0.
+
+-Output:
+  0 indicates succes,
+  less than zero for failure:
+
+    OV_EREAD - A read from media returned an error.
+    OV_ENOTVORBIS - Bitstream is not Vorbis data.
+    OV_EVERSION - Vorbis version mismatch.
+    OV_EBADHEADER - Invalid Vorbis bitstream header.
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+
+=cut
+
+int
+LibVorbis_ov_test(f, vf, initial, ibytes)
+    InputStream	     f
+    OggVorbis_File * vf
+    char *	     initial
+    long 	     ibytes
+  PREINIT:
+    FILE *fp = PerlIO_findFILE(f);
+  CODE:
+    if (fp == (FILE*) 0 || fileno(fp) <= 0) {   
+       XSRETURN_UNDEF;
+    }    
+    /* open the vorbis file */
+    RETVAL = ov_test(fp, vf, initial, ibytes);
+  OUTPUT:
+    RETVAL
+
+
+=head ov_test_open
+
+Finish opening a file partially opened with ov_test() or ov_test_callbacks(). 
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_test_open.html>
+
+-Input:
+  OggVorbis_File
+
+-Output:
+  0 indicates succes,
+  less than zero for failure:
+
+    OV_EREAD - A read from media returned an error.
+    OV_ENOTVORBIS - Bitstream is not Vorbis data.
+    OV_EVERSION - Vorbis version mismatch.
+    OV_EBADHEADER - Invalid Vorbis bitstream header.
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+
+=cut
+
+int
+LibVorbis_ov_test_open(vf)
+    OggVorbis_File *	vf
+  CODE:
+    RETVAL = ov_test_open(vf);
+  OUTPUT:
+    RETVAL
+
+
+=head2 ov_test_callbacks
+
+an alternative function used to open and test an OggVorbis_File structure when using a data source
+other than a file, when its necessary to modify default file access behavior.
+L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_test_callbacks.html>
+
+B<Please read the official ov_test_callbacks doc before you use this.> The perl version uses
+a different approach and uses vorbis_callbacks with custom functions to read, seek tell and close.
+
+B<this module can accept file name, network socket or a file pointer.>
+
+-Input:
+  void *, (data source)
+  OggVorbis_File, A pointer to the OggVorbis_File structure,
+  char *, Typically set to NULL,
+  int, Typically set to 0.
+
+-Output:
+  0 indicates succes,
+  less than zero for failure:
+
+    OV_EREAD - A read from media returned an error.
+    OV_ENOTVORBIS - Bitstream is not Vorbis data.
+    OV_EVERSION - Vorbis version mismatch.
+    OV_EBADHEADER - Invalid Vorbis bitstream header.
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+
+=cut
+
+int
+LibVorbis_ov_test_callbacks(path, vf, initial, ibytes)
+    SV *       	     path  
+    OggVorbis_File * vf
+    char *	     initial
+    int		     ibytes
+  PREINIT:
+    FILE *fp;
+  CODE:
+    int ret = 10;
+
+    /* our stash for streams */
+    ocvb_datasource *datasource = (ocvb_datasource *) safemalloc(sizeof(ocvb_datasource));
+    memset(datasource, 0, sizeof(ocvb_datasource));
+
+    /* check and see if a pathname was passed in, otherwise it might be a
+     * IO::Socket subclass, or even a *FH Glob */
+    if (SvOK(path) && (SvTYPE(SvRV(path)) != SVt_PVGV)) {
+
+      if ((datasource->stream = PerlIO_open((char*)SvPV_nolen(path), "r")) == NULL) {
+        safefree(vf);
+        printf("failed on open: [%d] - [%s]\n", errno, strerror(errno));
+        XSRETURN_UNDEF;
+      }
+
+      datasource->is_streaming = 0;
+
+    } else if (SvOK(path)) {
+
+      /* Did we get a Glob, or a IO::Socket subclass? */		
+      if (sv_isobject(path) && sv_derived_from(path, "IO::Socket")) {
+        datasource->is_streaming = 1;
+      } else {
+
+        datasource->is_streaming = 0;
+      }
+
+      /* dereference and get the SV* that contains the Magic & FH,
+       * then pull the fd from the PerlIO object */
+      datasource->stream = IoIFP(GvIOp(SvRV(path)));
+
+    } else {
+
+      fp = PerlIO_findFILE((PerlIO *)IoIFP(sv_2io(path)));
+      /* check whether it is a valid file handler */
+      if (fp == (FILE*) 0 || fileno(fp) <= 0) {   
+         XSRETURN_UNDEF;
+      }
+      datasource->stream = (PerlIO *)IoIFP(sv_2io(path));
+    }
+
+    if ((ret = ov_test_callbacks((void*)datasource, vf, NULL, 0, vorbis_callbacks)) < 0) {
+      warn("Failed on registering callbacks: [%d]\n", ret);
+      printf("failed on open: [%d] - [%s]\n", errno, strerror(errno));
+      ov_clear(vf);
+
+      XSRETURN_UNDEF;
+    }
+
+    datasource->bytes_streamed = 0;
+    datasource->last_bitstream = -1;
+
+    RETVAL = ret;
+
+  OUTPUT:
+    RETVAL
+
 
 
 =head2 ov_clear
