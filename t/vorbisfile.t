@@ -1,4 +1,4 @@
-use Test::More tests => 37;
+use Test::More tests => 38;
 BEGIN { use_ok('Ogg::Vorbis::LibVorbis'); $|++ };
 
 
@@ -33,7 +33,6 @@ my $vi = Ogg::Vorbis::LibVorbis::make_vorbis_info(); # vorbis_info
 ok($vi, "vorbis_info");
 
 # Open Vorbis File
-#my $filename = "t/I-15bis.ogg"; #"t/test.ogg";
 my $filename = "t/test.ogg";
 open IN, $filename or die "can't open [$filename] : $!"; 
 my $status = Ogg::Vorbis::LibVorbis::ov_open(*IN,  $vf, 0, 0);
@@ -180,3 +179,26 @@ ok($status == 0, "ov_test");
 $status = Ogg::Vorbis::LibVorbis::ov_test_open($vf);
 ok($status == 0, "ov_test_open");
 Ogg::Vorbis::LibVorbis::ov_clear($vf);
+
+test_ov_read();
+ok(1, "ov_read");
+
+# test ov_read
+sub test_ov_read {
+  $vf = Ogg::Vorbis::LibVorbis::make_oggvorbis_file(); 
+  open IN, $filename or die "can't open [$filename] : $!"; 
+  $status = Ogg::Vorbis::LibVorbis::ov_open_callbacks(*IN, $vf, 0, 0);
+  my $pcmout = 0;		# i know setting to -1 is of no use, but to avoid warning (_xs_ says NO_INIT)
+  my $bit = 0;
+  my $ret = -1;
+#  open OUT, "> output.pcm" or die "can't open output.pcm\n";
+#  binmode OUT;
+  my $total = 0;
+  while ($ret != 0) {
+    $ret = Ogg::Vorbis::LibVorbis::ov_read($vf, $pcmout, 4096, 0, 2, 1, $bit);
+#    print OUT $pcmout;
+  }
+#  close OUT;
+  Ogg::Vorbis::LibVorbis::ov_clear($vf);
+  return 
+}

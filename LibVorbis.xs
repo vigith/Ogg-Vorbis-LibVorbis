@@ -1140,6 +1140,51 @@ LibVorbis_ov_comment(vf, link)
   OUTPUT:
     RETVAL
 
+=head1 Decoding (vorbisfile)
+
+=head2 ov_read
+
+Decode a Vorbis file within a loop. L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_read.html>
+
+-Input:
+  OggVorbis_File *vf, 
+  char *buffer, 
+  int length, 
+  int bigendianp, (big or little endian byte packing. 0 for little endian, 1 for b ig endian)
+  int word, (word size)
+  int sgned, (1 for signed or 0 for unsigned)
+  int *bitstream
+
+-Output:
+  OV_HOLE, interruption in the data
+  OV_EBADLINK, invalid stream section
+  OV_EINVAL, initial file headers couldn't be read or are corrupt
+  0, EOF
+  n, actual number of bytes read
+
+=cut
+
+long
+LibVorbis_ov_read(vf, buffer, length, big, word, sgned, bit)
+    OggVorbis_File *  vf
+    char *	      buffer = NO_INIT
+    int  	      length
+    int		      big
+    int 	      word
+    int 	      sgned
+    int 	      bit = NO_INIT
+  CODE:
+    New(0, buffer, length, char);
+    RETVAL = ov_read(vf, buffer, length, big, word, sgned, &bit);
+    // if you dig deep in the XS, you will see char * is T_PV which is 
+    // sv_setpv for OUTPUT and SvPV_nolen for input
+    sv_setpvn((SV*)ST(1), buffer, RETVAL); 
+    SvSETMAGIC(ST(1));
+    XSprePUSH; 
+  OUTPUT:
+    RETVAL
+  CLEANUP:
+    Safefree(buffer);
 
 =head1 Miscellaneous Functions 
 
