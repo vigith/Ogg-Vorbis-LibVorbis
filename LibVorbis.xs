@@ -87,6 +87,28 @@ static long ovcb_tell(void *vdatasource) {
 }
 
 
+float ** XS_unpack_floatPtrPtr(SV * arg ) { 
+  AV * avref; 
+  float ** array; 
+  int len; 
+  SV ** elem; 
+  int i; 
+  avref = (AV*)SvRV(arg); 
+  len = av_len( avref ) + 1; 
+  /* First allocate some memory for the pointers 
+     plus one for the end */ 
+  array = get_mortalspace( (len+1) * sizeof( *array ));   
+  /* Loop over each element copying pointers to the array */ 
+  for (i=0; i<len; i++) { 
+    elem = av_fetch( avref, i, 0); 
+    array[i] = SvNV( *elem ); 
+  } 
+
+  return array; 
+} 
+
+
+
 MODULE = Ogg::Vorbis::LibVorbis		PACKAGE = Ogg::Vorbis::LibVorbis	PREFIX = LibVorbis_
 
 INCLUDE: const-xs.inc
@@ -141,7 +163,75 @@ LibVorbis_make_vorbis_info()
     New(0, memory, 1, vorbis_info);
     RETVAL = memory;
   OUTPUT:
-    RETVAL  
+    RETVAL 
+
+
+=head1 make_vorbis_comment
+
+Creates a memory allocation for vorbis_comment
+
+-Input:
+  void
+
+-Output:
+  Memory Pointer to vorbis_comment
+
+=cut
+
+vorbis_comment *
+LibVorbis_make_vorbis_comment()
+  PREINIT:
+    vorbis_comment *	memory;
+  CODE:
+    New(0, memory, 1, vorbis_comment);
+    RETVAL = memory;
+  OUTPUT:
+    RETVAL
+
+=head1 make_vorbis_block
+
+Creates a memory allocation for vorbis_block
+
+-Input:
+  void
+
+-Output:
+  Memory Pointer to vorbis_block
+
+=cut
+
+vorbis_block *
+LibVorbis_make_vorbis_block()
+  PREINIT:
+    vorbis_block *	memory;
+  CODE:
+    New(0, memory, 1, vorbis_block);
+    RETVAL = memory;
+  OUTPUT:
+    RETVAL
+
+
+=head1 make_vorbis_dsp_state
+
+Creates a memory allocation for vorbis_dsp_state
+
+-Input:
+  void
+
+-Output:
+  Memory Pointer to vorbis_dsp_state
+
+=cut
+
+vorbis_dsp_state *
+LibVorbis_make_vorbis_dsp_state()
+  PREINIT:
+    vorbis_dsp_state *	memory;
+  CODE:
+    New(0, memory, 1, vorbis_dsp_state);
+    RETVAL = memory;
+  OUTPUT:
+    RETVAL 
 
 
 =head1 Functions (vorbisfile)
@@ -273,7 +363,7 @@ LibVorbis_ov_open_callbacks(path, vf, initial, ibytes)
 
       if ((datasource->stream = PerlIO_open((char*)SvPV_nolen(path), "r")) == NULL) {
         safefree(vf);
-        printf("failed on open: [%d] - [%s]\n", errno, strerror(errno));
+        fprintf(stderr, "failed on open: [%d] - [%s]\n", errno, strerror(errno));
         XSRETURN_UNDEF;
       }
 
@@ -1186,6 +1276,204 @@ LibVorbis_ov_read(vf, buffer, length, big, word, sgned, bit)
   CLEANUP:
     Safefree(buffer);
 
+=head2 ov_read_float
+
+B<TODO> Returns samples in native float format instead of in integer formats.
+
+=cut
+
+=head2 ov_read_filter
+
+B<TODO> It passes the decoded floating point PCM data to the filter specified in the function arguments before 
+converting the data to integer output samples. (variant of ov_read())
+
+=cut
+
+=head1 Encoding 
+
+=cut
+
+=head2 vorbis_info_init
+
+This function initializes a vorbis_info structure and allocates its internal storage.
+L<http://www.xiph.org/vorbis/doc/libvorbis/vorbis_info_init.html>
+
+-Input:
+  vi, Pointer to a vorbis_info struct to be initialized.
+
+-Output:
+  void
+
+=cut
+
+void
+LibVorbis_vorbis_info_init(vi)
+    vorbis_info *	vi
+  CODE:
+    vorbis_info_init(vi);
+
+
+=head2 vorbis_encode_init_vbr
+
+This is the primary function within libvorbisenc for setting up variable 
+bitrate ("quality" based) modes. 
+
+-Input:
+  vorbis_info *vi,
+  long channels (number of channels to be encoded),
+  long rate (sampling rate of the source audio),
+  float base_quality (desired quality level, currently from -0.1 to 1.0 [lo to hi])
+
+-Output:
+  0 for success
+  less than zero for failure:
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+    OV_EINVAL - Invalid setup request, eg, out of range argument.
+    OV_EIMPL - Unimplemented mode; unable to comply with quality level request.
+
+=cut
+
+int
+LibVorbis_vorbis_encode_init_vbr(vi, channels, rate, base_quality)
+    vorbis_info *	vi
+    long		channels
+    long		rate
+    float		base_quality
+  CODE:
+    RETVAL = vorbis_encode_init_vbr(vi, channels, rate, base_quality);
+  OUTPUT:
+    RETVAL
+
+
+=head2 vorbis_analysis_init
+
+This function allocates and initializes the encoder's analysis state inside a is 
+vorbis_dsp_state, based on the configuration in a vorbis_info struct. 
+L<http://www.xiph.org/vorbis/doc/libvorbis/vorbis_analysis_init.html>
+
+-Input:
+  vorbis_dsp_state *v,
+  vorbis_info *vi
+
+-Output:
+  0 for SUCCESS
+
+=cut
+
+int
+LibVorbis_vorbis_analysis_init(v, vi)
+    vorbis_dsp_state *		  v
+    vorbis_info *    		  vi
+  CODE:
+    RETVAL = vorbis_analysis_init(v, vi);
+  OUTPUT:
+    RETVAL
+
+
+=head2 vorbis_block_init
+
+This function initializes a vorbis_block structure and allocates its internal storage.
+L<http://www.xiph.org/vorbis/doc/libvorbis/vorbis_block_init.html>
+
+-Input:
+  vorbis_dsp_state *v,
+  vorbis_block *vb
+
+-Output:
+  0 (for success)
+
+=cut
+
+int
+LibVorbis_vorbis_block_init(v, vb)
+    vorbis_dsp_state *	       v
+    vorbis_block *   	       vb
+  CODE:
+    RETVAL = vorbis_block_init(v, vb);
+  OUTPUT:
+    RETVAL
+
+
+=head2 vorbis_encode_setup_init
+
+This function performs the last stage of three-step encoding setup, as 
+described in the API overview under managed bitrate modes. 
+L<http://xiph.org/vorbis/doc/vorbisenc/vorbis_encode_setup_init.html>
+
+-Input:
+  vorbis_info *vi
+
+-Output:
+  0 for success
+  less than zero for failure:
+    OV_EFAULT - Internal logic fault; indicates a bug or heap/stack corruption.
+    OV_EINVAL - Attempt to use vorbis_encode_setup_init() without first calling one of vorbis_encode_setup_managed() 
+                or vorbis_encode_setup_vbr() to initialize the high-level encoding setup
+
+=cut
+
+int
+LibVorbis_vorbis_encode_setup_init(vi)
+    vorbis_info *	vi
+  CODE:
+    RETVAL = vorbis_encode_setup_init(vi);
+  OUTPUT:
+    RETVAL
+
+=head2 vorbis_comment_init
+
+This function initializes a vorbis_comment structure for use.
+L<http://www.xiph.org/vorbis/doc/libvorbis/vorbis_comment_init.html>
+
+-Input:
+  vorbis_comment *vc
+
+-Ouput:
+  void
+
+=cut
+
+void
+LibVorbis_vorbis_comment_init(vc)
+    vorbis_comment *	vc
+  CODE:
+    vorbis_comment_init(vc);
+
+
+=head2 vorbis_analysis_headerout(v, vc, op, op_comm, op_code)
+
+This function creates and returns the three header packets needed to configure a decoder to 
+accept compressed data. L<http://www.xiph.org/vorbis/doc/libvorbis/vorbis_analysis_headerout.html>
+
+-Input:
+  vorbis_dsp_state *v,
+  vorbis_comment *vc,
+  ogg_packet *op,
+  ogg_packet *op_comm,
+  ogg_packet *op_code
+
+-Output:
+  0 for success
+  negative values for failure:
+    OV_EFAULT - Internal fault; indicates a bug or memory corruption.
+    OV_EIMPL - Unimplemented; not supported by this version of the library.
+
+=cut
+
+int
+LibVorbis_vorbis_analysis_headerout(v, vc, op, op_comm, op_code)
+    vorbis_dsp_state *		v
+    vorbis_comment * 		vc
+    ogg_packet *   		op
+    ogg_packet *		op_comm
+    ogg_packet *		op_code
+  CODE:
+    RETVAL = vorbis_analysis_headerout(v, vc, op, op_comm, op_code);
+  OUTPUT:
+    RETVAL
+
+
+
 =head1 Miscellaneous Functions 
 
 These functions are not found in libvorbis*, but is written by the XS author
@@ -1273,5 +1561,23 @@ LibVorbis_get_vorbis_comment(vc)
 
     RETVAL = hash;
 
+  OUTPUT:
+    RETVAL
+
+
+=head2 vorbis_encode_frames
+
+This function encode the given frames. It calls vorbis_analysis_buffer and
+vorbis_analysis_wrote internally to give the data to the encode for compression.
+
+=cut
+
+float **
+LibVorbis_vorbis_encode_frames()
+  CODE:
+    float **b;
+    float a[1][1] = {{0,1},{0,1}};
+    b = a;
+    RETVAL = a;
   OUTPUT:
     RETVAL
