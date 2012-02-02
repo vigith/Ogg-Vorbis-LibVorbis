@@ -150,6 +150,8 @@ void XS_pack_floatPtrPtr( SV * arg, float ** array) {
     /* create a reference to array (inner) */
     av_push(avref, newRV((SV*)avref_2));
   } 
+
+  /* pack the data in 'arg' and put it back in 'arg' */
   SvSetSV( arg, newRV((SV*)avref)); 
 } 
 
@@ -1519,6 +1521,57 @@ LibVorbis_vorbis_analysis_headerout(v, vc, op, op_comm, op_code)
     RETVAL
 
 
+=heaqd2 vorbis_analysis_buffer
+
+This fuction requests a buffer array for delivering audio to the encoder for compression.
+L<http://www.xiph.org/vorbis/doc/libvorbis/vorbis_analysis_buffer.html>
+
+-Input:
+  vorbis_dsp_state *v,
+  int vals
+
+-Output:
+  ** float (an array of floating point buffers which can accept data)
+
+=cut
+
+float **
+LibVorbis_vorbis_analysis_buffer(v, vals)
+    vorbis_dsp_state *		v
+    int		     		vals
+  CODE:
+    RETVAL = vorbis_analysis_buffer(v, vals);
+  OUTPUT:
+    RETVAL
+
+
+=head2 vorbis_analysis_wrote
+
+This function tells the encoder new data is available for compression. 
+L<http://www.xiph.org/vorbis/doc/libvorbis/vorbis_analysis_wrote.html>
+
+-Input:
+  vorbis_dsp_state *v,
+  int vals
+
+-Output:  
+  0 for success
+  negative values for failure:
+    OV_EINVAL - Invalid request; e.g. vals overflows the allocated space,
+    OV_EFAULT - Internal fault; indicates a bug or memory corruption,
+    OV_EIMPL - Unimplemented; not supported by this version of the library.
+
+=cut
+
+int
+LibVorbis_vorbis_analysis_wrote(v, val)
+    vorbis_dsp_state *		v
+    int		     		val
+  CODE:
+    RETVAL = vorbis_analysis_wrote(v, val);
+  OUTPUT:
+    RETVAL
+
 
 =head1 Miscellaneous Functions 
 
@@ -1616,16 +1669,34 @@ LibVorbis_get_vorbis_comment(vc)
 This function encode the given frames. It calls vorbis_analysis_buffer and
 vorbis_analysis_wrote internally to give the data to the encode for compression.
 
+$ret = Ogg::Vorbis::LibVorbis::vorbis_encode_frames([[1,2],[3,4]]);
+use Data::Dumper; diag( Dumper $ret);
+
+WIP
+
 =cut
 
-float **
-LibVorbis_vorbis_encode_frames(fl)
-    float **	fl
+int
+LibVorbis_vorbis_encode_frames(v, vals, channels, buffer)
+    vorbis_dsp_state *		v
+    int		     		vals
+    int				channels
+    char *			buffer
   PREINIT:
-    int count_floatPtrPtr = _arr_rows;
+    float ** vorbis_buffer;
   CODE:
-    RETVAL = fl;
+   vorbis_buffer=vorbis_analysis_buffer(v, vals);
+
+   /* uninterleave samples */
+   for(i=0; i<vals; i++){
+     for(j=0; j<channels; j++){
+       vorbis_buffer[j][i]=((readptr[count+1]<<8)|
+			   (0x00ff&(int)readptr[count]))/32768.f;
+       count+=2;
+     }
+   }
+
+   RETVAL = vorbis_analysis_wrote(vd,sampread);
   OUTPUT:
     RETVAL
-
 
