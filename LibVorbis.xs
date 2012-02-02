@@ -42,6 +42,9 @@ typedef struct {
 typedef PerlIO *        OutputStream;
 typedef PerlIO *        InputStream;
 
+static int _arr_rows;
+static int _arr_cols;
+
 /* useful items from XMMS */
 static size_t ovcb_read(void *ptr, size_t size, size_t nmemb, void *vdatasource) {
 
@@ -86,25 +89,68 @@ static long ovcb_tell(void *vdatasource) {
   return PerlIO_tell(datasource->stream);
 }
 
+static void * get_mortalspace ( size_t nbytes ) {
+  SV * mortal;
+  mortal = sv_2mortal( NEWSV(0, nbytes ) );
+  return (void *) SvPVX( mortal );
+}
 
+/* Handler for unpacking (float **) */
 float ** XS_unpack_floatPtrPtr(SV * arg ) { 
-  AV * avref; 
-  float ** array; 
-  int len; 
+  AV * avref;
+  AV * avref_2; 
+  float ** array;
+  SV ** data; 
+  int len, len_2; 
   SV ** elem; 
-  int i; 
+  int i, j; 
+
   avref = (AV*)SvRV(arg); 
   len = av_len( avref ) + 1; 
-  /* First allocate some memory for the pointers 
-     plus one for the end */ 
-  array = get_mortalspace( (len+1) * sizeof( *array ));   
+  /* First allocate some memory for the pointers and a NULL for delimiter */ 
+  array = (float **)get_mortalspace( (len+1) * sizeof( *array ));   
   /* Loop over each element copying pointers to the array */ 
   for (i=0; i<len; i++) { 
+    /* now elem points to the 2nd array in 2D float array */
     elem = av_fetch( avref, i, 0); 
-    array[i] = SvNV( *elem ); 
+    /* get the pointer to inner array */
+    avref_2 = (AV*)SvRV((SV *)*elem);
+    /* get the length of the inner array */
+    len_2 = av_len(avref_2) + 1;
+    /* create mortal space for the 2D array (+1 for NULL delimiter) */
+    array[i] = (float *)get_mortalspace( (len_2+1) * sizeof(float));
+    for (j=0; j<len_2; j++) {
+      /* get the element */   
+      data = av_fetch(avref_2, j, 0);
+      /* fill the ARRAY */
+      array[i][j] = SvNV(*data); 
+    }
   } 
 
+  /* hard code the row and col length */
+  _arr_rows = i;
+  _arr_cols = j;		/* all arrays are of same size */
+
   return array; 
+} 
+
+/* Handler for packing (float **) */
+void XS_pack_floatPtrPtr( SV * arg, float ** array) { 
+  int i, j; 
+  AV *avref, *avref_2; 
+  /* create an array_ref */
+  avref  = (AV*)sv_2mortal((SV*)newAV()); 
+  for (i=0; i<_arr_rows; i++) { 
+    /* ref to inner array */
+    avref_2  = (AV*)sv_2mortal((SV*)newAV()); 
+    /* populate inner array */
+    for (j=0; j<_arr_cols; j++) {
+      av_push(avref_2, newSVnv(array[i][j]));
+    }
+    /* create a reference to array (inner) */
+    av_push(avref, newRV((SV*)avref_2));
+  } 
+  SvSetSV( arg, newRV((SV*)avref)); 
 } 
 
 
@@ -1573,11 +1619,13 @@ vorbis_analysis_wrote internally to give the data to the encode for compression.
 =cut
 
 float **
-LibVorbis_vorbis_encode_frames()
+LibVorbis_vorbis_encode_frames(fl)
+    float **	fl
+  PREINIT:
+    int count_floatPtrPtr = _arr_rows;
   CODE:
-    float **b;
-    float a[1][1] = {{0,1},{0,1}};
-    b = a;
-    RETVAL = a;
+    RETVAL = fl;
   OUTPUT:
     RETVAL
+
+

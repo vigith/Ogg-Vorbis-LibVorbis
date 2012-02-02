@@ -6,3 +6,5 @@ vorbis_block *	 	T_PTR
 
 ogg_int64_t 		T_NV
 ogg_packet *		T_PTR
+
+float **   		T_PACKED
