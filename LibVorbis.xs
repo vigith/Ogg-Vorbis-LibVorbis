@@ -1573,6 +1573,63 @@ LibVorbis_vorbis_analysis_wrote(v, val)
     RETVAL
 
 
+=head2 vorbis_analysis_blockout
+
+This fuction examines the available uncompressed data and tries to break it into appropriate 
+sized blocks. L<http://www.xiph.org/vorbis/doc/libvorbis/vorbis_analysis_blockout.html>
+
+-Input:
+  vorbis_dsp_state *,
+  vorbis_block *
+
+-Output:
+  1 for success when more blocks are available.
+  0 for success when this is the last block available from the current input.
+  negative values for failure:
+    OV_EINVAL - Invalid parameters.
+    OV_EFAULT - Internal fault; indicates a bug or memory corruption.
+    OV_EIMPL - Unimplemented; not supported by this version of the library.
+
+=cut
+
+int
+LibVorbis_vorbis_analysis_blockout(v, vb)
+    vorbis_dsp_state *		v
+    vorbis_block *   		vb
+  CODE:
+    RETVAL = vorbis_analysis_blockout(v, vb);
+  OUTPUT:
+    RETVAL
+
+=head2 vorbis_analysis
+
+Once the uncompressed audio data has been divided into blocks, this function is called on each block. 
+It looks up the encoding mode and dispatches the block to the forward transform provided by that mode. 
+L<http://www.xiph.org/vorbis/doc/libvorbis/vorbis_analysis.html>
+
+-Input:
+  vorbis_block *,
+  ogg_packet *
+
+-Output:
+   0 for success
+   negative values for failure:
+     OV_EINVAL - Invalid request; a non-NULL value was passed for op when the encoder is using a bitrate managed mode.
+     OV_EFAULT - Internal fault; indicates a bug or memory corruption.
+     OV_EIMPL - Unimplemented; not supported by this version of the library.
+
+=cut 
+
+int
+LibVorbis_vorbis_analysis(vb, op)
+    vorbis_block *	  vb
+    ogg_packet * 	  op
+  CODE:
+    RETVAL = vorbis_analysis(vb, op);
+  OUTPUT:
+    RETVAL
+
+
 =head1 Miscellaneous Functions 
 
 These functions are not found in libvorbis*, but is written by the XS author
@@ -1664,39 +1721,48 @@ LibVorbis_get_vorbis_comment(vc)
     RETVAL
 
 
-=head2 vorbis_encode_frames
+=head2 vorbis_encode_wav_frames
 
 This function encode the given frames. It calls vorbis_analysis_buffer and
 vorbis_analysis_wrote internally to give the data to the encode for compression.
 
-$ret = Ogg::Vorbis::LibVorbis::vorbis_encode_frames([[1,2],[3,4]]);
-use Data::Dumper; diag( Dumper $ret);
+-Input:
+  vorbis_dsp_state *,
+  int (number of samples to provide space for in the returned buffer),
+  channels,
+  data buffer
 
-WIP
+-Output:
+  same as of vorbis_analysis_wrote
 
 =cut
 
 int
-LibVorbis_vorbis_encode_frames(v, vals, channels, buffer)
+LibVorbis_vorbis_encode_wav_frames(v, vals, channels, buffer)
     vorbis_dsp_state *		v
     int		     		vals
     int				channels
     char *			buffer
   PREINIT:
     float ** vorbis_buffer;
+    int i, j;
+    int count = 0;
   CODE:
    vorbis_buffer=vorbis_analysis_buffer(v, vals);
+
+   if (vorbis_buffer == NULL)
+     fprintf(stderr, "vorbis_analysis_buffer returned NULL, float ** was expected (might crap out soon)\n");
 
    /* uninterleave samples */
    for(i=0; i<vals; i++){
      for(j=0; j<channels; j++){
-       vorbis_buffer[j][i]=((readptr[count+1]<<8)|
-			   (0x00ff&(int)readptr[count]))/32768.f;
+       vorbis_buffer[j][i]=((buffer[count+1]<<8)|
+			   (0x00ff&(int)buffer[count]))/32768.f;
        count+=2;
      }
    }
 
-   RETVAL = vorbis_analysis_wrote(vd,sampread);
+   RETVAL = vorbis_analysis_wrote(v, channels);
   OUTPUT:
     RETVAL
 
