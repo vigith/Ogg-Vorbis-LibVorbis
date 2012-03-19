@@ -191,7 +191,7 @@ LibVorbis_make_oggvorbis_file()
     RETVAL  
 
 
-=head1 make_vorbis_info
+=head2 make_vorbis_info
 
 Creates a memory allocation for vorbis_info
 
@@ -214,7 +214,7 @@ LibVorbis_make_vorbis_info()
     RETVAL 
 
 
-=head1 make_vorbis_comment
+=head2 make_vorbis_comment
 
 Creates a memory allocation for vorbis_comment
 
@@ -236,7 +236,7 @@ LibVorbis_make_vorbis_comment()
   OUTPUT:
     RETVAL
 
-=head1 make_vorbis_block
+=head2 make_vorbis_block
 
 Creates a memory allocation for vorbis_block
 
@@ -259,7 +259,7 @@ LibVorbis_make_vorbis_block()
     RETVAL
 
 
-=head1 make_vorbis_dsp_state
+=head2 make_vorbis_dsp_state
 
 Creates a memory allocation for vorbis_dsp_state
 
@@ -1521,7 +1521,7 @@ LibVorbis_vorbis_analysis_headerout(v, vc, op, op_comm, op_code)
     RETVAL
 
 
-=heaqd2 vorbis_analysis_buffer
+=head2 vorbis_analysis_buffer
 
 This fuction requests a buffer array for delivering audio to the encoder for compression.
 L<http://www.xiph.org/vorbis/doc/libvorbis/vorbis_analysis_buffer.html>

@@ -305,7 +305,7 @@ Creates a memory allocation for OggVorbis_File datastructure
   Memory Pointer
 
 
-=head1 make_vorbis_info
+=head2 make_vorbis_info
 
 Creates a memory allocation for vorbis_info
 
@@ -316,7 +316,7 @@ Creates a memory allocation for vorbis_info
   Memory Pointer to vorbis_info
 
 
-=head1 make_vorbis_comment
+=head2 make_vorbis_comment
 
 Creates a memory allocation for vorbis_comment
 
@@ -327,7 +327,7 @@ Creates a memory allocation for vorbis_comment
   Memory Pointer to vorbis_comment
 
 
-=head1 make_vorbis_block
+=head2 make_vorbis_block
 
 Creates a memory allocation for vorbis_block
 
@@ -338,7 +338,7 @@ Creates a memory allocation for vorbis_block
   Memory Pointer to vorbis_block
 
 
-=head1 make_vorbis_dsp_state
+=head2 make_vorbis_dsp_state
 
 Creates a memory allocation for vorbis_dsp_state
 
