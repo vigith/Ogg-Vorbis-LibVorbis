@@ -6,6 +6,7 @@ ppport.h
 README
 fallback/const-c.inc
 fallback/const-xs.inc
+typemap
 lib/Ogg/Vorbis/LibVorbis.pm
 t/encode.t
 t/vorbisfile.t
