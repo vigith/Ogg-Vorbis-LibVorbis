@@ -191,14 +191,14 @@ sub test_ov_read {
   my $pcmout = 0;		# i know setting to -1 is of no use, but to avoid warning (_xs_ says NO_INIT)
   my $bit = 0;
   my $ret = -1;
-#  open OUT, "> output.pcm" or die "can't open output.pcm\n";
-#  binmode OUT;
+  open OUT, "> t/output.pcm" or die "can't open output.pcm\n";
+  binmode OUT;
   my $total = 0;
   while ($ret != 0) {
     $ret = Ogg::Vorbis::LibVorbis::ov_read($vf, $pcmout, 4096, 0, 2, 1, $bit);
-#    print OUT $pcmout;
+    print OUT $pcmout;
   }
-#  close OUT;
+  close OUT;
   Ogg::Vorbis::LibVorbis::ov_clear($vf);
   return 
 }

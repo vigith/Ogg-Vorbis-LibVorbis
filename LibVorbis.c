@@ -51,6 +51,9 @@ typedef struct {
 typedef PerlIO *        OutputStream;
 typedef PerlIO *        InputStream;
 
+static int _arr_rows;
+static int _arr_cols;
+
 /* useful items from XMMS */
 static size_t ovcb_read(void *ptr, size_t size, size_t nmemb, void *vdatasource) {
 
@@ -95,8 +98,75 @@ static long ovcb_tell(void *vdatasource) {
   return PerlIO_tell(datasource->stream);
 }
 
+static void * get_mortalspace ( size_t nbytes ) {
+  SV * mortal;
+  mortal = sv_2mortal( NEWSV(0, nbytes ) );
+  return (void *) SvPVX( mortal );
+}
 
-#line 100 "LibVorbis.c"
+/* Handler for unpacking (float **) */
+float ** XS_unpack_floatPtrPtr(SV * arg ) { 
+  AV * avref;
+  AV * avref_2; 
+  float ** array;
+  SV ** data; 
+  int len, len_2; 
+  SV ** elem; 
+  int i, j; 
+
+  avref = (AV*)SvRV(arg); 
+  len = av_len( avref ) + 1; 
+  /* First allocate some memory for the pointers and a NULL for delimiter */ 
+  array = (float **)get_mortalspace( (len+1) * sizeof( *array ));   
+  /* Loop over each element copying pointers to the array */ 
+  for (i=0; i<len; i++) { 
+    /* now elem points to the 2nd array in 2D float array */
+    elem = av_fetch( avref, i, 0); 
+    /* get the pointer to inner array */
+    avref_2 = (AV*)SvRV((SV *)*elem);
+    /* get the length of the inner array */
+    len_2 = av_len(avref_2) + 1;
+    /* create mortal space for the 2D array (+1 for NULL delimiter) */
+    array[i] = (float *)get_mortalspace( (len_2+1) * sizeof(float));
+    for (j=0; j<len_2; j++) {
+      /* get the element */   
+      data = av_fetch(avref_2, j, 0);
+      /* fill the ARRAY */
+      array[i][j] = SvNV(*data); 
+    }
+  } 
+
+  /* hard code the row and col length */
+  _arr_rows = i;
+  _arr_cols = j;		/* all arrays are of same size */
+
+  return array; 
+} 
+
+/* Handler for packing (float **) */
+void XS_pack_floatPtrPtr( SV * arg, float ** array) { 
+  int i, j; 
+  AV *avref, *avref_2; 
+  /* create an array_ref */
+  avref  = (AV*)sv_2mortal((SV*)newAV()); 
+  for (i=0; i<_arr_rows; i++) { 
+    /* ref to inner array */
+    avref_2  = (AV*)sv_2mortal((SV*)newAV()); 
+    /* populate inner array */
+    for (j=0; j<_arr_cols; j++) {
+      av_push(avref_2, newSVnv(array[i][j]));
+    }
+    /* create a reference to array (inner) */
+    av_push(avref, newRV((SV*)avref_2));
+  } 
+
+  /* pack the data in 'arg' and put it back in 'arg' */
+  SvSetSV( arg, newRV((SV*)avref)); 
+} 
+
+
+
+#line 170 "LibVorbis.c"
 #ifndef PERL_UNUSED_VAR
 #  define PERL_UNUSED_VAR(var) if (0) var = var
 #endif
@@ -148,7 +218,7 @@ S_croak_xs_usage(pTHX_ const CV *const cv, const char *const params)
 #define newXSproto_portable(name, c_impl, file, proto) (PL_Sv=(SV*)newXS(name, c_impl, file), sv_setpv(PL_Sv, proto), (CV*)PL_Sv)
 #endif /* !defined(newXS_flags) */
 
-#line 152 "LibVorbis.c"
+#line 222 "LibVorbis.c"
 
 /* INCLUDE:  Including 'const-xs.inc' from 'LibVorbis.xs' */
 
@@ -177,7 +247,7 @@ XS(XS_Ogg__Vorbis__LibVorbis_constant)
 	IV		iv;
 	/* NV		nv;	Uncomment this if you need to return NVs */
 	/* const char	*pv;	Uncomment this if you need to return PVs */
-#line 181 "LibVorbis.c"
+#line 251 "LibVorbis.c"
 	SV *	sv = ST(0);
 	const char *	s = SvPV(sv, len);
 #line 18 "./const-xs.inc"
@@ -254,7 +324,7 @@ XS(XS_Ogg__Vorbis__LibVorbis_constant)
                type, s));
           PUSHs(sv);
         }
-#line 258 "LibVorbis.c"
+#line 328 "LibVorbis.c"
 	PUTBACK;
 	return;
     }
@@ -275,15 +345,15 @@ XS(XS_Ogg__Vorbis__LibVorbis_make_oggvorbis_file)
     if (items != 0)
        croak_xs_usage(cv,  "");
     {
-#line 116 "LibVorbis.xs"
+#line 186 "LibVorbis.xs"
     OggVorbis_File *memory;
-#line 281 "LibVorbis.c"
+#line 351 "LibVorbis.c"
 	OggVorbis_File *	RETVAL;
 	dXSTARG;
-#line 118 "LibVorbis.xs"
+#line 188 "LibVorbis.xs"
     New(0, memory, 1, OggVorbis_File);
     RETVAL = memory;
-#line 287 "LibVorbis.c"
+#line 357 "LibVorbis.c"
 	XSprePUSH; PUSHi(PTR2IV(RETVAL));
     }
     XSRETURN(1);
@@ -301,15 +371,93 @@ XS(XS_Ogg__Vorbis__LibVorbis_make_vorbis_info)
     if (items != 0)
        croak_xs_usage(cv,  "");
     {
-#line 139 "LibVorbis.xs"
+#line 209 "LibVorbis.xs"
     vorbis_info *	memory;
-#line 307 "LibVorbis.c"
+#line 377 "LibVorbis.c"
 	vorbis_info *	RETVAL;
 	dXSTARG;
-#line 141 "LibVorbis.xs"
+#line 211 "LibVorbis.xs"
     New(0, memory, 1, vorbis_info);
     RETVAL = memory;
-#line 313 "LibVorbis.c"
+#line 383 "LibVorbis.c"
+	XSprePUSH; PUSHi(PTR2IV(RETVAL));
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_make_vorbis_comment); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_make_vorbis_comment)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 0)
+       croak_xs_usage(cv,  "");
+    {
+#line 232 "LibVorbis.xs"
+    vorbis_comment *	memory;
+#line 403 "LibVorbis.c"
+	vorbis_comment *	RETVAL;
+	dXSTARG;
+#line 234 "LibVorbis.xs"
+    New(0, memory, 1, vorbis_comment);
+    RETVAL = memory;
+#line 409 "LibVorbis.c"
+	XSprePUSH; PUSHi(PTR2IV(RETVAL));
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_make_vorbis_block); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_make_vorbis_block)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 0)
+       croak_xs_usage(cv,  "");
+    {
+#line 254 "LibVorbis.xs"
+    vorbis_block *	memory;
+#line 429 "LibVorbis.c"
+	vorbis_block *	RETVAL;
+	dXSTARG;
+#line 256 "LibVorbis.xs"
+    New(0, memory, 1, vorbis_block);
+    RETVAL = memory;
+#line 435 "LibVorbis.c"
+	XSprePUSH; PUSHi(PTR2IV(RETVAL));
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_make_vorbis_dsp_state); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_make_vorbis_dsp_state)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 0)
+       croak_xs_usage(cv,  "");
+    {
+#line 277 "LibVorbis.xs"
+    vorbis_dsp_state *	memory;
+#line 455 "LibVorbis.c"
+	vorbis_dsp_state *	RETVAL;
+	dXSTARG;
+#line 279 "LibVorbis.xs"
+    New(0, memory, 1, vorbis_dsp_state);
+    RETVAL = memory;
+#line 461 "LibVorbis.c"
 	XSprePUSH; PUSHi(PTR2IV(RETVAL));
     }
     XSRETURN(1);
@@ -331,19 +479,19 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_open)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(1)));
 	char *	initial = (char *)SvPV_nolen(ST(2));
 	int	ibytes = (int)SvIV(ST(3));
-#line 184 "LibVorbis.xs"
+#line 322 "LibVorbis.xs"
     FILE *fp = PerlIO_findFILE(f);
-#line 337 "LibVorbis.c"
+#line 485 "LibVorbis.c"
 	int	RETVAL;
 	dXSTARG;
-#line 186 "LibVorbis.xs"
+#line 324 "LibVorbis.xs"
     /* check whether it is a valid file handler */
     if (fp == (FILE*) 0 || fileno(fp) <= 0) {   
       Perl_croak(aTHX_ "Expected Open FILE HANDLER");
     }
     /* open the vorbis file */
     RETVAL = ov_open(fp, vf, initial, ibytes);
-#line 347 "LibVorbis.c"
+#line 495 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -365,9 +513,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_fopen)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(1)));
 	int	RETVAL;
 	dXSTARG;
-#line 221 "LibVorbis.xs"
+#line 359 "LibVorbis.xs"
     RETVAL = ov_fopen(path, vf);
-#line 371 "LibVorbis.c"
+#line 519 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -389,12 +537,12 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_open_callbacks)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(1)));
 	char *	initial = (char *)SvPV_nolen(ST(2));
 	int	ibytes = (int)SvIV(ST(3));
-#line 262 "LibVorbis.xs"
+#line 400 "LibVorbis.xs"
     FILE *fp;
-#line 395 "LibVorbis.c"
+#line 543 "LibVorbis.c"
 	int	RETVAL;
 	dXSTARG;
-#line 264 "LibVorbis.xs"
+#line 402 "LibVorbis.xs"
     int ret = 10;
 
     /* our stash for streams */
@@ -407,7 +555,7 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_open_callbacks)
 
       if ((datasource->stream = PerlIO_open((char*)SvPV_nolen(path), "r")) == NULL) {
         safefree(vf);
-        printf("failed on open: [%d] - [%s]\n", errno, strerror(errno));
+        fprintf(stderr, "failed on open: [%d] - [%s]\n", errno, strerror(errno));
         XSRETURN_UNDEF;
       }
 
@@ -450,7 +598,7 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_open_callbacks)
 
     RETVAL = ret;
 
-#line 454 "LibVorbis.c"
+#line 602 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -472,18 +620,18 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_test)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(1)));
 	char *	initial = (char *)SvPV_nolen(ST(2));
 	long	ibytes = (long)SvIV(ST(3));
-#line 353 "LibVorbis.xs"
+#line 491 "LibVorbis.xs"
     FILE *fp = PerlIO_findFILE(f);
-#line 478 "LibVorbis.c"
+#line 626 "LibVorbis.c"
 	int	RETVAL;
 	dXSTARG;
-#line 355 "LibVorbis.xs"
+#line 493 "LibVorbis.xs"
     if (fp == (FILE*) 0 || fileno(fp) <= 0) {   
        XSRETURN_UNDEF;
     }    
     /* open the vorbis file */
     RETVAL = ov_test(fp, vf, initial, ibytes);
-#line 487 "LibVorbis.c"
+#line 635 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -504,9 +652,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_test_open)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	int	RETVAL;
 	dXSTARG;
-#line 388 "LibVorbis.xs"
+#line 526 "LibVorbis.xs"
     RETVAL = ov_test_open(vf);
-#line 510 "LibVorbis.c"
+#line 658 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -528,12 +676,12 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_test_callbacks)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(1)));
 	char *	initial = (char *)SvPV_nolen(ST(2));
 	int	ibytes = (int)SvIV(ST(3));
-#line 429 "LibVorbis.xs"
+#line 567 "LibVorbis.xs"
     FILE *fp;
-#line 534 "LibVorbis.c"
+#line 682 "LibVorbis.c"
 	int	RETVAL;
 	dXSTARG;
-#line 431 "LibVorbis.xs"
+#line 569 "LibVorbis.xs"
     int ret = 10;
 
     /* our stash for streams */
@@ -589,7 +737,7 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_test_callbacks)
 
     RETVAL = ret;
 
-#line 593 "LibVorbis.c"
+#line 741 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -610,9 +758,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_clear)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	int	RETVAL;
 	dXSTARG;
-#line 508 "LibVorbis.xs"
+#line 646 "LibVorbis.xs"
     RETVAL = ov_clear(vf);
-#line 616 "LibVorbis.c"
+#line 764 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -633,9 +781,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_seekable)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	int	RETVAL;
 	dXSTARG;
-#line 531 "LibVorbis.xs"
+#line 669 "LibVorbis.xs"
     RETVAL = ov_seekable(vf);
-#line 639 "LibVorbis.c"
+#line 787 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -657,9 +805,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_time_total)
 	int	i = (int)SvIV(ST(1));
 	double	RETVAL;
 	dXSTARG;
-#line 557 "LibVorbis.xs"
+#line 695 "LibVorbis.xs"
     RETVAL = ov_time_total(vf, i);
-#line 663 "LibVorbis.c"
+#line 811 "LibVorbis.c"
 	XSprePUSH; PUSHn((double)RETVAL);
     }
     XSRETURN(1);
@@ -681,9 +829,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_time_seek)
 	double	s = (double)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 588 "LibVorbis.xs"
+#line 726 "LibVorbis.xs"
     RETVAL = ov_time_seek(vf, s);
-#line 687 "LibVorbis.c"
+#line 835 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -705,9 +853,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_raw_seek)
 	long	s = (long)SvIV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 619 "LibVorbis.xs"
+#line 757 "LibVorbis.xs"
     RETVAL = ov_raw_seek(vf, s);
-#line 711 "LibVorbis.c"
+#line 859 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -729,9 +877,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_pcm_seek)
 	ogg_int64_t	s = (ogg_int64_t)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 650 "LibVorbis.xs"
+#line 788 "LibVorbis.xs"
     RETVAL = ov_pcm_seek(vf, s);
-#line 735 "LibVorbis.c"
+#line 883 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -753,9 +901,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_pcm_seek_page)
 	ogg_int64_t	pos = (ogg_int64_t)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 681 "LibVorbis.xs"
+#line 819 "LibVorbis.xs"
     RETVAL = ov_pcm_seek_page(vf, pos);
-#line 759 "LibVorbis.c"
+#line 907 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -777,9 +925,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_time_seek_page)
 	double	pos = (double)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 712 "LibVorbis.xs"
+#line 850 "LibVorbis.xs"
     RETVAL = ov_time_seek_page(vf, pos);
-#line 783 "LibVorbis.c"
+#line 931 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -801,9 +949,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_raw_seek_lap)
 	ogg_int64_t	pos = (ogg_int64_t)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 744 "LibVorbis.xs"
+#line 882 "LibVorbis.xs"
     RETVAL = ov_raw_seek_lap(vf, pos);
-#line 807 "LibVorbis.c"
+#line 955 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -825,9 +973,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_pcm_seek_lap)
 	long	pos = (long)SvIV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 776 "LibVorbis.xs"
+#line 914 "LibVorbis.xs"
     RETVAL = ov_pcm_seek_lap(vf, pos);
-#line 831 "LibVorbis.c"
+#line 979 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -849,9 +997,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_time_seek_lap)
 	double	pos = (double)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 808 "LibVorbis.xs"
+#line 946 "LibVorbis.xs"
     RETVAL = ov_time_seek_lap(vf, pos);
-#line 855 "LibVorbis.c"
+#line 1003 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -873,9 +1021,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_time_seek_page_lap)
 	double	pos = (double)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 840 "LibVorbis.xs"
+#line 978 "LibVorbis.xs"
     RETVAL = ov_time_seek_page_lap(vf, pos);
-#line 879 "LibVorbis.c"
+#line 1027 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -897,9 +1045,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_pcm_seek_page_lap)
 	ogg_int64_t	pos = (ogg_int64_t)SvNV(ST(1));
 	int	RETVAL;
 	dXSTARG;
-#line 872 "LibVorbis.xs"
+#line 1010 "LibVorbis.xs"
     RETVAL = ov_pcm_seek_page_lap(vf, pos);
-#line 903 "LibVorbis.c"
+#line 1051 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -920,9 +1068,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_streams)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	long	RETVAL;
 	dXSTARG;
-#line 895 "LibVorbis.xs"
+#line 1033 "LibVorbis.xs"
     RETVAL = ov_streams(vf);
-#line 926 "LibVorbis.c"
+#line 1074 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -944,9 +1092,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_info)
 	int	link = (int)SvIV(ST(1));
 	vorbis_info *	RETVAL;
 	dXSTARG;
-#line 920 "LibVorbis.xs"
+#line 1058 "LibVorbis.xs"
     RETVAL = ov_info(vf, link);
-#line 950 "LibVorbis.c"
+#line 1098 "LibVorbis.c"
 	XSprePUSH; PUSHi(PTR2IV(RETVAL));
     }
     XSRETURN(1);
@@ -968,9 +1116,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_bitrate)
 	int	i = (int)SvIV(ST(1));
 	long	RETVAL;
 	dXSTARG;
-#line 945 "LibVorbis.xs"
+#line 1083 "LibVorbis.xs"
     RETVAL = ov_bitrate(vf, i);
-#line 974 "LibVorbis.c"
+#line 1122 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -991,9 +1139,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_bitrate_instant)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	long	RETVAL;
 	dXSTARG;
-#line 969 "LibVorbis.xs"
+#line 1107 "LibVorbis.xs"
     RETVAL = ov_bitrate_instant(vf);
-#line 997 "LibVorbis.c"
+#line 1145 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -1015,9 +1163,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_serialnumber)
 	int	i = (int)SvIV(ST(1));
 	long	RETVAL;
 	dXSTARG;
-#line 994 "LibVorbis.xs"
+#line 1132 "LibVorbis.xs"
     RETVAL = ov_serialnumber(vf, i);
-#line 1021 "LibVorbis.c"
+#line 1169 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -1039,9 +1187,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_raw_total)
 	int	i = (int)SvIV(ST(1));
 	long	RETVAL;
 	dXSTARG;
-#line 1020 "LibVorbis.xs"
+#line 1158 "LibVorbis.xs"
     RETVAL = ov_raw_total(vf, i);
-#line 1045 "LibVorbis.c"
+#line 1193 "LibVorbis.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -1063,9 +1211,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_pcm_total)
 	int	i = (int)SvIV(ST(1));
 	ogg_int64_t	RETVAL;
 	dXSTARG;
-#line 1045 "LibVorbis.xs"
+#line 1183 "LibVorbis.xs"
     RETVAL = ov_pcm_total(vf, i);
-#line 1069 "LibVorbis.c"
+#line 1217 "LibVorbis.c"
 	XSprePUSH; PUSHn((NV)RETVAL);
     }
     XSRETURN(1);
@@ -1086,9 +1234,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_raw_tell)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	ogg_int64_t	RETVAL;
 	dXSTARG;
-#line 1068 "LibVorbis.xs"
+#line 1206 "LibVorbis.xs"
     RETVAL = ov_raw_tell(vf);
-#line 1092 "LibVorbis.c"
+#line 1240 "LibVorbis.c"
 	XSprePUSH; PUSHn((NV)RETVAL);
     }
     XSRETURN(1);
@@ -1109,9 +1257,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_pcm_tell)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	ogg_int64_t	RETVAL;
 	dXSTARG;
-#line 1091 "LibVorbis.xs"
+#line 1229 "LibVorbis.xs"
     RETVAL = ov_pcm_tell(vf);
-#line 1115 "LibVorbis.c"
+#line 1263 "LibVorbis.c"
 	XSprePUSH; PUSHn((NV)RETVAL);
     }
     XSRETURN(1);
@@ -1132,9 +1280,9 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_time_tell)
 	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
 	ogg_int64_t	RETVAL;
 	dXSTARG;
-#line 1114 "LibVorbis.xs"
+#line 1252 "LibVorbis.xs"
     RETVAL = ov_time_tell(vf);
-#line 1138 "LibVorbis.c"
+#line 1286 "LibVorbis.c"
 	XSprePUSH; PUSHn((NV)RETVAL);
     }
     XSRETURN(1);
@@ -1156,10 +1304,308 @@ XS(XS_Ogg__Vorbis__LibVorbis_ov_comment)
 	int	link = (int)SvIV(ST(1));
 	vorbis_comment *	RETVAL;
 	dXSTARG;
-#line 1139 "LibVorbis.xs"
+#line 1277 "LibVorbis.xs"
     RETVAL = ov_comment(vf, link);
-#line 1162 "LibVorbis.c"
+#line 1310 "LibVorbis.c"
 	XSprePUSH; PUSHi(PTR2IV(RETVAL));
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_ov_read); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_ov_read)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 7)
+       croak_xs_usage(cv,  "vf, buffer, length, big, word, sgned, bit");
+    {
+	OggVorbis_File *	vf = INT2PTR(OggVorbis_File *,SvIV(ST(0)));
+	char *	buffer;
+	int	length = (int)SvIV(ST(2));
+	int	big = (int)SvIV(ST(3));
+	int	word = (int)SvIV(ST(4));
+	int	sgned = (int)SvIV(ST(5));
+	int	bit;
+	long	RETVAL;
+	dXSTARG;
+#line 1315 "LibVorbis.xs"
+    New(0, buffer, length, char);
+    RETVAL = ov_read(vf, buffer, length, big, word, sgned, &bit);
+    // if you dig deep in the XS, you will see char * is T_PV which is 
+    // sv_setpv for OUTPUT and SvPV_nolen for input
+    sv_setpvn((SV*)ST(1), buffer, RETVAL); 
+    SvSETMAGIC(ST(1));
+    XSprePUSH; 
+#line 1345 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+#line 1325 "LibVorbis.xs"
+    Safefree(buffer);
+#line 1349 "LibVorbis.c"
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_info_init); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_info_init)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 1)
+       croak_xs_usage(cv,  "vi");
+    {
+	vorbis_info *	vi = INT2PTR(vorbis_info *,SvIV(ST(0)));
+#line 1361 "LibVorbis.xs"
+    vorbis_info_init(vi);
+#line 1369 "LibVorbis.c"
+    }
+    XSRETURN_EMPTY;
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_encode_init_vbr); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_encode_init_vbr)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 4)
+       croak_xs_usage(cv,  "vi, channels, rate, base_quality");
+    {
+	vorbis_info *	vi = INT2PTR(vorbis_info *,SvIV(ST(0)));
+	long	channels = (long)SvIV(ST(1));
+	long	rate = (long)SvIV(ST(2));
+	float	base_quality = (float)SvNV(ST(3));
+	int	RETVAL;
+	dXSTARG;
+#line 1391 "LibVorbis.xs"
+    RETVAL = vorbis_encode_init_vbr(vi, channels, rate, base_quality);
+#line 1394 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_init); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_init)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 2)
+       croak_xs_usage(cv,  "v, vi");
+    {
+	vorbis_dsp_state *	v = INT2PTR(vorbis_dsp_state *,SvIV(ST(0)));
+	vorbis_info *	vi = INT2PTR(vorbis_info *,SvIV(ST(1)));
+	int	RETVAL;
+	dXSTARG;
+#line 1416 "LibVorbis.xs"
+    RETVAL = vorbis_analysis_init(v, vi);
+#line 1418 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_block_init); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_block_init)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 2)
+       croak_xs_usage(cv,  "v, vb");
+    {
+	vorbis_dsp_state *	v = INT2PTR(vorbis_dsp_state *,SvIV(ST(0)));
+	vorbis_block *	vb = INT2PTR(vorbis_block *,SvIV(ST(1)));
+	int	RETVAL;
+	dXSTARG;
+#line 1440 "LibVorbis.xs"
+    RETVAL = vorbis_block_init(v, vb);
+#line 1442 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_encode_setup_init); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_encode_setup_init)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 1)
+       croak_xs_usage(cv,  "vi");
+    {
+	vorbis_info *	vi = INT2PTR(vorbis_info *,SvIV(ST(0)));
+	int	RETVAL;
+	dXSTARG;
+#line 1467 "LibVorbis.xs"
+    RETVAL = vorbis_encode_setup_init(vi);
+#line 1465 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_comment_init); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_comment_init)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 1)
+       croak_xs_usage(cv,  "vc");
+    {
+	vorbis_comment *	vc = INT2PTR(vorbis_comment *,SvIV(ST(0)));
+#line 1488 "LibVorbis.xs"
+    vorbis_comment_init(vc);
+#line 1486 "LibVorbis.c"
+    }
+    XSRETURN_EMPTY;
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_headerout); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_headerout)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 5)
+       croak_xs_usage(cv,  "v, vc, op, op_comm, op_code");
+    {
+	vorbis_dsp_state *	v = INT2PTR(vorbis_dsp_state *,SvIV(ST(0)));
+	vorbis_comment *	vc = INT2PTR(vorbis_comment *,SvIV(ST(1)));
+	ogg_packet *	op = INT2PTR(ogg_packet *,SvIV(ST(2)));
+	ogg_packet *	op_comm = INT2PTR(ogg_packet *,SvIV(ST(3)));
+	ogg_packet *	op_code = INT2PTR(ogg_packet *,SvIV(ST(4)));
+	int	RETVAL;
+	dXSTARG;
+#line 1519 "LibVorbis.xs"
+    RETVAL = vorbis_analysis_headerout(v, vc, op, op_comm, op_code);
+#line 1512 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_buffer); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_buffer)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 2)
+       croak_xs_usage(cv,  "v, vals");
+    {
+	vorbis_dsp_state *	v = INT2PTR(vorbis_dsp_state *,SvIV(ST(0)));
+	int	vals = (int)SvIV(ST(1));
+	float **	RETVAL;
+#line 1543 "LibVorbis.xs"
+    RETVAL = vorbis_analysis_buffer(v, vals);
+#line 1535 "LibVorbis.c"
+	ST(0) = sv_newmortal();
+	XS_pack_floatPtrPtr(ST(0), RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_wrote); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_wrote)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 2)
+       croak_xs_usage(cv,  "v, val");
+    {
+	vorbis_dsp_state *	v = INT2PTR(vorbis_dsp_state *,SvIV(ST(0)));
+	int	val = (int)SvIV(ST(1));
+	int	RETVAL;
+	dXSTARG;
+#line 1571 "LibVorbis.xs"
+    RETVAL = vorbis_analysis_wrote(v, val);
+#line 1560 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_blockout); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_blockout)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 2)
+       croak_xs_usage(cv,  "v, vb");
+    {
+	vorbis_dsp_state *	v = INT2PTR(vorbis_dsp_state *,SvIV(ST(0)));
+	vorbis_block *	vb = INT2PTR(vorbis_block *,SvIV(ST(1)));
+	int	RETVAL;
+	dXSTARG;
+#line 1600 "LibVorbis.xs"
+    RETVAL = vorbis_analysis_blockout(v, vb);
+#line 1584 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_analysis); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_analysis)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 2)
+       croak_xs_usage(cv,  "vb, op");
+    {
+	vorbis_block *	vb = INT2PTR(vorbis_block *,SvIV(ST(0)));
+	ogg_packet *	op = INT2PTR(ogg_packet *,SvIV(ST(1)));
+	int	RETVAL;
+	dXSTARG;
+#line 1628 "LibVorbis.xs"
+    RETVAL = vorbis_analysis(vb, op);
+#line 1608 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
 }
@@ -1177,11 +1623,11 @@ XS(XS_Ogg__Vorbis__LibVorbis_get_vorbis_info)
        croak_xs_usage(cv,  "vi");
     {
 	vorbis_info *	vi = INT2PTR(vorbis_info *,SvIV(ST(0)));
-#line 1168 "LibVorbis.xs"
+#line 1657 "LibVorbis.xs"
     HV * hash;
-#line 1183 "LibVorbis.c"
+#line 1629 "LibVorbis.c"
 	HV *	RETVAL;
-#line 1170 "LibVorbis.xs"
+#line 1659 "LibVorbis.xs"
     hash = newHV();
 
     sv_2mortal((SV *)hash);	/* convert the HASH to a mortal */
@@ -1195,7 +1641,7 @@ XS(XS_Ogg__Vorbis__LibVorbis_get_vorbis_info)
     hv_store(hash, "codec_setup", strlen("codec_setup"), newSViv(PTR2IV(vi->codec_setup)), 0);
 
     RETVAL = hash;
-#line 1199 "LibVorbis.c"
+#line 1645 "LibVorbis.c"
 	ST(0) = newRV((SV*)RETVAL);
 	sv_2mortal(ST(0));
     }
@@ -1215,14 +1661,14 @@ XS(XS_Ogg__Vorbis__LibVorbis_get_vorbis_comment)
        croak_xs_usage(cv,  "vc");
     {
 	vorbis_comment *	vc = INT2PTR(vorbis_comment *,SvIV(ST(0)));
-#line 1204 "LibVorbis.xs"
+#line 1693 "LibVorbis.xs"
     HV * hash;
     AV * uc;			/* user comments */
     AV * cl;			/* comment lenth */
     int i = 0;
-#line 1224 "LibVorbis.c"
+#line 1670 "LibVorbis.c"
 	HV *	RETVAL;
-#line 1209 "LibVorbis.xs"
+#line 1698 "LibVorbis.xs"
     hash = newHV();
     sv_2mortal((SV *)hash);
 
@@ -1245,9 +1691,54 @@ XS(XS_Ogg__Vorbis__LibVorbis_get_vorbis_comment)
 
     RETVAL = hash;
 
-#line 1249 "LibVorbis.c"
+#line 1695 "LibVorbis.c"
 	ST(0) = newRV((SV*)RETVAL);
 	sv_2mortal(ST(0));
+    }
+    XSRETURN(1);
+}
+
+
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_encode_wav_frames); /* prototype to pass -Wmissing-prototypes */
+XS(XS_Ogg__Vorbis__LibVorbis_vorbis_encode_wav_frames)
+{
+#ifdef dVAR
+    dVAR; dXSARGS;
+#else
+    dXSARGS;
+#endif
+    if (items != 4)
+       croak_xs_usage(cv,  "v, vals, channels, buffer");
+    {
+	vorbis_dsp_state *	v = INT2PTR(vorbis_dsp_state *,SvIV(ST(0)));
+	int	vals = (int)SvIV(ST(1));
+	int	channels = (int)SvIV(ST(2));
+	char *	buffer = (char *)SvPV_nolen(ST(3));
+#line 1747 "LibVorbis.xs"
+    float ** vorbis_buffer;
+    int i, j;
+    int count = 0;
+#line 1722 "LibVorbis.c"
+	int	RETVAL;
+	dXSTARG;
+#line 1751 "LibVorbis.xs"
+   vorbis_buffer=vorbis_analysis_buffer(v, vals);
+
+   if (vorbis_buffer == NULL)
+     fprintf(stderr, "vorbis_analysis_buffer returned NULL, float ** was expected (might crap out soon)\n");
+
+   /* uninterleave samples */
+   for(i=0; i<vals; i++){
+     for(j=0; j<channels; j++){
+       vorbis_buffer[j][i]=((buffer[count+1]<<8)|
+			   (0x00ff&(int)buffer[count]))/32768.f;
+       count+=2;
+     }
+   }
+
+   RETVAL = vorbis_analysis_wrote(v, channels);
+#line 1741 "LibVorbis.c"
+	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
 }
@@ -1276,6 +1767,9 @@ XS(boot_Ogg__Vorbis__LibVorbis)
         newXS("Ogg::Vorbis::LibVorbis::constant", XS_Ogg__Vorbis__LibVorbis_constant, file);
         newXS("Ogg::Vorbis::LibVorbis::make_oggvorbis_file", XS_Ogg__Vorbis__LibVorbis_make_oggvorbis_file, file);
         newXS("Ogg::Vorbis::LibVorbis::make_vorbis_info", XS_Ogg__Vorbis__LibVorbis_make_vorbis_info, file);
+        newXS("Ogg::Vorbis::LibVorbis::make_vorbis_comment", XS_Ogg__Vorbis__LibVorbis_make_vorbis_comment, file);
+        newXS("Ogg::Vorbis::LibVorbis::make_vorbis_block", XS_Ogg__Vorbis__LibVorbis_make_vorbis_block, file);
+        newXS("Ogg::Vorbis::LibVorbis::make_vorbis_dsp_state", XS_Ogg__Vorbis__LibVorbis_make_vorbis_dsp_state, file);
         newXS("Ogg::Vorbis::LibVorbis::ov_open", XS_Ogg__Vorbis__LibVorbis_ov_open, file);
         newXS("Ogg::Vorbis::LibVorbis::ov_fopen", XS_Ogg__Vorbis__LibVorbis_ov_fopen, file);
         newXS("Ogg::Vorbis::LibVorbis::ov_open_callbacks", XS_Ogg__Vorbis__LibVorbis_ov_open_callbacks, file);
@@ -1306,8 +1800,21 @@ XS(boot_Ogg__Vorbis__LibVorbis)
         newXS("Ogg::Vorbis::LibVorbis::ov_pcm_tell", XS_Ogg__Vorbis__LibVorbis_ov_pcm_tell, file);
         newXS("Ogg::Vorbis::LibVorbis::ov_time_tell", XS_Ogg__Vorbis__LibVorbis_ov_time_tell, file);
         newXS("Ogg::Vorbis::LibVorbis::ov_comment", XS_Ogg__Vorbis__LibVorbis_ov_comment, file);
+        newXS("Ogg::Vorbis::LibVorbis::ov_read", XS_Ogg__Vorbis__LibVorbis_ov_read, file);
+        newXS("Ogg::Vorbis::LibVorbis::vorbis_info_init", XS_Ogg__Vorbis__LibVorbis_vorbis_info_init, file);
+        newXS("Ogg::Vorbis::LibVorbis::vorbis_encode_init_vbr", XS_Ogg__Vorbis__LibVorbis_vorbis_encode_init_vbr, file);
+        newXS("Ogg::Vorbis::LibVorbis::vorbis_analysis_init", XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_init, file);
+        newXS("Ogg::Vorbis::LibVorbis::vorbis_block_init", XS_Ogg__Vorbis__LibVorbis_vorbis_block_init, file);
+        newXS("Ogg::Vorbis::LibVorbis::vorbis_encode_setup_init", XS_Ogg__Vorbis__LibVorbis_vorbis_encode_setup_init, file);
+        newXS("Ogg::Vorbis::LibVorbis::vorbis_comment_init", XS_Ogg__Vorbis__LibVorbis_vorbis_comment_init, file);
+        newXS("Ogg::Vorbis::LibVorbis::vorbis_analysis_headerout", XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_headerout, file);
+        newXS("Ogg::Vorbis::LibVorbis::vorbis_analysis_buffer", XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_buffer, file);
+        newXS("Ogg::Vorbis::LibVorbis::vorbis_analysis_wrote", XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_wrote, file);
+        newXS("Ogg::Vorbis::LibVorbis::vorbis_analysis_blockout", XS_Ogg__Vorbis__LibVorbis_vorbis_analysis_blockout, file);
+        newXS("Ogg::Vorbis::LibVorbis::vorbis_analysis", XS_Ogg__Vorbis__LibVorbis_vorbis_analysis, file);
         newXS("Ogg::Vorbis::LibVorbis::get_vorbis_info", XS_Ogg__Vorbis__LibVorbis_get_vorbis_info, file);
         newXS("Ogg::Vorbis::LibVorbis::get_vorbis_comment", XS_Ogg__Vorbis__LibVorbis_get_vorbis_comment, file);
+        newXS("Ogg::Vorbis::LibVorbis::vorbis_encode_wav_frames", XS_Ogg__Vorbis__LibVorbis_vorbis_encode_wav_frames, file);
 #if (PERL_REVISION == 5 && PERL_VERSION >= 9)
   if (PL_unitcheckav)
        call_list(PL_scopestack_ix, PL_unitcheckav);

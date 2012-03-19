@@ -499,7 +499,7 @@ LibVorbis_ov_test(f, vf, initial, ibytes)
     RETVAL
 
 
-=head ov_test_open
+=head2 ov_test_open
 
 Finish opening a file partially opened with ov_test() or ov_test_callbacks(). 
 L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_test_open.html>
@@ -1012,7 +1012,7 @@ LibVorbis_ov_pcm_seek_page_lap(vf, pos)
     RETVAL
 
 
-=head ov_streams
+=head2 ov_streams
 
 Returns the number of logical bitstreams within our physical bitstream. 
 L<http://www.xiph.org/vorbis/doc/vorbisfile/ov_streams.html>

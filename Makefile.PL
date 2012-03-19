@@ -5,7 +5,7 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME              => 'Ogg::Vorbis::LibVorbis',
     VERSION_FROM      => 'lib/Ogg/Vorbis/LibVorbis.pm', # finds $VERSION
-    PREREQ_PM         => {}, # e.g., Module::Name => 1.1
+    PREREQ_PM         => {Ogg::LibOgg => 0}, # e.g., Module::Name => 1.1
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'lib/Ogg/Vorbis/LibVorbis.pm', # retrieve abstract from module
        AUTHOR         => 'Vigith Maurice <vigith@cpan.org>') : ()),
@@ -13,6 +13,12 @@ WriteMakefile(
     DEFINE            => '', # e.g., '-DHAVE_SOMETHING'
     INC               => '-I/usr/lib/include -I/opt/local/include -I/usr/lib',
 );
+
+eval { require Ogg::LibOgg };
+if ($@) {
+  die "Oops, we require Ogg::LibOgg!! $@"
+}
+
 if  (eval {require ExtUtils::Constant; 1}) {
   # If you edit these definitions to change the constants used by this module,
   # you will need to use the generated const-c.inc and const-xs.inc

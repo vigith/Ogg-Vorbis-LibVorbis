@@ -100,18 +100,14 @@ sub save_page {
 sub add_frames {
   my $data = $read->read_raw_samples($channels);
   my $no = $read->position_samples();  
-diag( $no, "--", length($data),"\n");
+
   # vorbis_encode_wav_frames(v, vals, channels, buffer)
   my $status = Ogg::Vorbis::LibVorbis::vorbis_encode_wav_frames($v, 1024, $channels, $data);
 
-  # while (vorbis_analysis_blockout(self.vd, self.vb) == 1):
+  # while (vorbis_analysis_blockout(self.vd, self.vb) == 1)
   # 	vorbis_analysis(self.vb,self.audio_pkt)
   # 	ogg_stream_packetin(self.to,self.audio_pkt)
   while (($status = Ogg::Vorbis::LibVorbis::vorbis_analysis_blockout($v, $vb)) == 1) {
-    if ($status < 0) {
-      diag ("Crap Out, some error [$status]");
-      exit -1;
-    }
     $status = Ogg::Vorbis::LibVorbis::vorbis_analysis($vb, $op_audio);
     if ($status < 0) {
       diag ("Crap Out, some error [$status]");
@@ -123,5 +119,4 @@ diag( $no, "--", length($data),"\n");
   save_page();
 
   return $length == $no ? 0 : 1
-#  return 192368 == $no ? 0 : 1;
 }

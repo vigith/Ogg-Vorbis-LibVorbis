@@ -571,7 +571,7 @@ metafile : create_distdir
 	$(NOECHO) $(ECHO) '--- #YAML:1.0' > META_new.yml
 	$(NOECHO) $(ECHO) 'name:               Ogg-Vorbis-LibVorbis' >> META_new.yml
 	$(NOECHO) $(ECHO) 'version:            0.01' >> META_new.yml
-	$(NOECHO) $(ECHO) 'abstract:           Perl extension for blah blah blah' >> META_new.yml
+	$(NOECHO) $(ECHO) 'abstract:           XS Interface for calling Vorbis Audio Codec functions in Perl.' >> META_new.yml
 	$(NOECHO) $(ECHO) 'author:' >> META_new.yml
 	$(NOECHO) $(ECHO) '    - Vigith Maurice <vigith@cpan.org>' >> META_new.yml
 	$(NOECHO) $(ECHO) 'license:            unknown' >> META_new.yml
@@ -933,7 +933,7 @@ testdb_static :: pure_all $(MAP_TARGET)
 ppd :
 	$(NOECHO) $(ECHO) '<SOFTPKG NAME="$(DISTNAME)" VERSION="0,01,0,0">' > $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <TITLE>$(DISTNAME)</TITLE>' >> $(DISTNAME).ppd
-	$(NOECHO) $(ECHO) '    <ABSTRACT>Perl extension for blah blah blah</ABSTRACT>' >> $(DISTNAME).ppd
+	$(NOECHO) $(ECHO) '    <ABSTRACT>XS Interface for calling Vorbis Audio Codec functions in Perl.</ABSTRACT>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <AUTHOR>Vigith Maurice &lt;vigith@cpan.org&gt;</AUTHOR>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <IMPLEMENTATION>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '        <OS NAME="$(OSNAME)" />' >> $(DISTNAME).ppd
